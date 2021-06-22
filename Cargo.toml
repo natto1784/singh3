@@ -1,0 +1,16 @@
+[package]
+name = "singh3"
+version = "0.1.0"
+authors = [ "Amneesh Singh <natto@weirdnatto.in>" ]
+edition = "2018"
+
+[dependencies]
+tracing = "0.1.22"
+
+[dependencies.serenity]
+version = "0.10.8"
+features = ["cache", "framework", "standard_framework", "rustls_backend", "unstable_discord_api"]
+
+[dependencies.tokio]
+version = "1.0"
+features = ["macros", "signal", "rt-multi-thread"]
