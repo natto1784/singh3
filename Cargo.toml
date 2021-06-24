@@ -6,6 +6,8 @@ edition = "2018"
 
 [dependencies]
 tracing = "0.1.22"
+regex = "1.5.4"
+tokio-postgres = "0.7.2"
 
 [dependencies.serenity]
 version = "0.10.8"

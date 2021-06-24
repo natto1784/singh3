@@ -1,9 +1,11 @@
 mod interactions;
+mod count;
 use serenity::{
     async_trait,
     model::{
         event::ResumedEvent,
         gateway::Ready,
+        channel::Message,
         interactions::{
             ApplicationCommand, Interaction, InteractionData, InteractionResponseType,
             InteractionType,
@@ -27,6 +29,10 @@ impl EventHandler for Handler {
     async fn resume(&self, _: Context, _: ResumedEvent) {
         info!("how th when the");
     }
+    async fn message(&self, _: Context, msg: Message) {
+        count::count(msg).await;
+    }
+
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if interaction.kind == InteractionType::ApplicationCommand {
             if let Some(InteractionData::ApplicationCommand(data)) = interaction.data.as_ref() {

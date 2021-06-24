@@ -10,6 +10,7 @@ use std::{collections::HashSet, env, sync::Arc};
 use tracing::error;
 pub struct ShardManagerContainer;
 use commands::general::*;
+use commands::count::*;
 use handler::Handler;
 
 impl TypeMapKey for ShardManagerContainer {
@@ -19,6 +20,10 @@ impl TypeMapKey for ShardManagerContainer {
 #[group]
 #[commands(ping)]
 struct General;
+
+#[group]
+#[commands(kitna)]
+struct Count;
 
 #[tokio::main]
 async fn main() {
@@ -38,7 +43,8 @@ async fn main() {
 
     let framework = StandardFramework::new()
         .configure(|c| c.owners(owners).prefix("xx"))
-        .group(&GENERAL_GROUP);
+        .group(&GENERAL_GROUP)
+        .group(&COUNT_GROUP);
 
     let mut client = Client::builder(&token)
         .framework(framework)
