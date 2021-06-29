@@ -11,6 +11,7 @@ use tracing::error;
 pub struct ShardManagerContainer;
 use commands::general::*;
 use commands::count::*;
+use commands::minigames::*;
 use handler::Handler;
 
 impl TypeMapKey for ShardManagerContainer {
@@ -24,6 +25,10 @@ struct General;
 #[group]
 #[commands(kitna)]
 struct Count;
+
+#[group]
+#[commands(challenge)]
+struct Minigames;
 
 #[tokio::main]
 async fn main() {
@@ -44,7 +49,8 @@ async fn main() {
     let framework = StandardFramework::new()
         .configure(|c| c.owners(owners).prefix("xx"))
         .group(&GENERAL_GROUP)
-        .group(&COUNT_GROUP);
+        .group(&COUNT_GROUP)
+        .group(&MINIGAMES_GROUP);
 
     let mut client = Client::builder(&token)
         .framework(framework)

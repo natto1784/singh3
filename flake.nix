@@ -30,7 +30,7 @@
         nativeBuildInputs = with pkgs; [
           rust-bin.nightly.latest.default
         ];
-        cargoSha256 = "sha256-qpmDIhgHcSoX/wIJlKNULxrEr+KOrCdXOi7HDuCdlFM=";
+        cargoSha256 = "sha256-K+WHOEo6reNfcs7pOZZmHZfZl4pUqlykfTdqgSyVURU=";
       };
     }
   );
