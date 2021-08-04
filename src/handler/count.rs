@@ -1,14 +1,14 @@
+use regex::Regex;
 use serenity::model::channel::Message;
 use std::collections::HashMap;
 use std::env;
-use regex::Regex;
 use tokio_postgres::NoTls;
 
 pub async fn count(msg: Message) {
     let words: HashMap<&str, Regex> = [
         ("nword", Regex::new(r"(?i)(nig+(er|a)|nig{2,})").unwrap()),
-        ("acha", Regex::new(r"(?i)a(c??h??|6??)a+").unwrap()),
-        ("sus", Regex::new(r"(?i)sus|(?i)amon?g\s?us").unwrap()),
+        ("acha", Regex::new(r"(?i)a(c+?h+?|6+?)a+").unwrap()),
+        ("sus", Regex::new(r"(?i)sus|(?i)amon??g\s??us").unwrap()),
     ]
     .iter()
     .cloned()
@@ -42,7 +42,8 @@ pub async fn count(msg: Message) {
         .expect("cant create table");
 
     for name in ["nword", "acha", "sus"] {
-        if words[name].is_match(&msg.content) {
+        let count = words[name].captures_iter(&msg.content).count();
+        if count > 0 {
             let query_result = client
                 .query(
                     format!("SELECT count FROM user{} where name='{}'", id, name).as_str(),
@@ -53,7 +54,11 @@ pub async fn count(msg: Message) {
             if query_result.is_empty() {
                 client
                     .execute(
-                        format!("insert into user{} (name, count) values ('{}', 0)", id, name).as_str(),
+                        format!(
+                            "insert into user{} (name, count) values ('{}', 0)",
+                            id, name
+                        )
+                        .as_str(),
                         &[],
                     )
                     .await
@@ -61,7 +66,11 @@ pub async fn count(msg: Message) {
             }
             client
                 .execute(
-                    format!("UPDATE user{} SET count = count + 1 where name='{}'", id, name).as_str(),
+                    format!(
+                        "UPDATE user{} SET count = count + {} where name='{}'",
+                        id, count, name
+                    )
+                    .as_str(),
                     &[],
                 )
                 .await

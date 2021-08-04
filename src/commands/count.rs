@@ -8,12 +8,15 @@ use std::{collections::HashMap, env};
 use tokio_postgres::NoTls;
 
 #[command]
-pub async fn kitna(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let query: String = args.single::<String>()?;
+pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let query: String = args.raw().collect::<Vec<&str>>().join(" ");
+    if query == "" {
+        msg.reply(ctx, "bruh kitna kya?");
+    }
     let words: HashMap<&str, Regex> = [
         ("nword", Regex::new(r"(?i)(nig+(er|a)|nig{2,})").unwrap()),
-        ("acha", Regex::new(r"(?i)a(c??h??|6??)a+").unwrap()),
-        ("sus", Regex::new(r"(?i)sus|(?i)amon?g\s?us").unwrap()),
+        ("acha", Regex::new(r"(?i)a((c+?h+?|6+?)a+").unwrap()),
+        ("sus", Regex::new(r"(?i)sus|(?i)amon??g\s??us").unwrap()),
     ]
     .iter()
     .cloned()
@@ -38,7 +41,8 @@ pub async fn kitna(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                 .await
                 .expect("cant select the count");
             let count: i32 = query_result.get("count");
-            msg.reply(ctx, format!("{} count for you: {}", name, count)).await?;
+            msg.reply(ctx, format!("{} count for you: {}", name, count))
+                .await?;
             break;
         }
     }
