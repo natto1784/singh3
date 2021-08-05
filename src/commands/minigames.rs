@@ -6,7 +6,8 @@ use serenity::{
 };
 use std::time::Duration;
 
-async fn chall(ctx: &Context, msg: &Message) -> CommandResult {
+#[command]
+pub async fn challenge(ctx: &Context, msg: &Message) -> CommandResult {
     if msg.mentions.is_empty() {
         msg.reply(ctx, "mention to daal chutiye").await?;
         return Ok(());
@@ -35,7 +36,7 @@ async fn chall(ctx: &Context, msg: &Message) -> CommandResult {
         } else if ["no", "nahi", "n"].contains(&answer.content.to_lowercase().as_str()) {
             msg.reply(ctx, "Challenge not accepted").await?;
             challenge.delete(&ctx.http).await?;
-            return 1;
+            return Ok(());
         } else {
             answer
                 .reply(
@@ -43,17 +44,12 @@ async fn chall(ctx: &Context, msg: &Message) -> CommandResult {
                     "Please only answer in no/nahi/n or yes/ha/y\ndeleting challenge ...",
                 )
                 .await?;
-            return 1;
+            return Ok(());
         }
     } else {
         msg.reply(ctx, "Challenge not accepted in 60s").await?;
-        return 1;
+        return Ok(());
     }
-    return 0;
-}
-
-#[command]
-pub async fn challenge(ctx: &Context, msg: &Message) -> CommandResult {
     let won = random();
     let winner = if won {
         msg.mentions[0].mention()

@@ -23,7 +23,7 @@ impl TypeMapKey for ShardManagerContainer {
 struct General;
 
 #[group]
-#[commands(kitna)]
+#[commands(kitna,add,rm,change)]
 struct Count;
 
 #[group]

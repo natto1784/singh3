@@ -1,18 +1,9 @@
 use regex::Regex;
 use serenity::model::channel::Message;
-use std::collections::HashMap;
 use std::env;
 use tokio_postgres::NoTls;
 
 pub async fn count(msg: Message) {
-    let words: HashMap<&str, Regex> = [
-        ("nword", Regex::new(r"(?i)(nig+(er|a)|nig{2,})").unwrap()),
-        ("acha", Regex::new(r"(?i)a(c+?h+?|6+?)a+").unwrap()),
-        ("sus", Regex::new(r"(?i)sus|(?i)amon??g\s??us").unwrap()),
-    ]
-    .iter()
-    .cloned()
-    .collect();
     let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
     let (client, conn) = tokio_postgres::connect(&db, NoTls)
         .await
@@ -41,8 +32,14 @@ pub async fn count(msg: Message) {
         .await
         .expect("cant create table");
 
-    for name in ["nword", "acha", "sus"] {
-        let count = words[name].captures_iter(&msg.content).count();
+    for row in client
+        .query("SELECT name, reg FROM words", &[])
+        .await
+        .expect("can't get the words to count")
+    {
+        let name: &str = row.get(0);
+        let regex: Regex = Regex::new(row.get(1)).unwrap();
+        let count = regex.captures_iter(&msg.content).count();
         if count > 0 {
             let query_result = client
                 .query(
