@@ -50,11 +50,12 @@ EOF
       template {
         data = <<EOF
 {{with secret "kv/data/singh3/db"}}
-DB_URL="postgresql://singh3:{{.Data.data.pass}}@{{env "NOMAD_ADDR_db"}}/singh3"
+DB_URL="postgresql://singh3:{{.Data.data.pass}}@localhost:5432/singh3"
 {{end}}
 {{with secret "kv/data/singh3/discord"}}
 DISCORD_TOKEN="{{.Data.data.token}}"
 {{end}}
+RUST_BACKTRACE=1
 EOF
         destination = "${NOMAD_SECRETS_DIR}/data.env"
         env = true

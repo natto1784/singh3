@@ -6,8 +6,16 @@ use commands::minigames::*;
 use handler::Handler;
 use serenity::{
     client::bridge::gateway::ShardManager,
-    framework::{standard::macros::group, StandardFramework},
+    framework::{
+        standard::{
+            help_commands,
+            macros::{group, help},
+            Args, CommandGroup, CommandResult, HelpOptions,
+        },
+        StandardFramework,
+    },
     http::Http,
+    model::{channel::Message, id::UserId},
     prelude::*,
 };
 use std::{collections::HashSet, env, sync::Arc};
@@ -35,6 +43,23 @@ struct Count;
 #[commands(challenge)]
 struct Minigames;
 
+#[help]
+#[max_levenshtein_distance(2)]
+#[indention_prefix = "+"]
+#[lacking_role = "Nothing"]
+#[wrong_channel = "Strike"]
+async fn my_help(
+    context: &Context,
+    msg: &Message,
+    args: Args,
+    help_options: &'static HelpOptions,
+    groups: &[&'static CommandGroup],
+    owners: HashSet<UserId>,
+) -> CommandResult {
+    let _ = help_commands::with_embeds(context, msg, args, help_options, groups, owners).await;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     let token = env::var("DISCORD_TOKEN").expect("Token daal madarchod");
@@ -53,6 +78,7 @@ async fn main() {
 
     let framework = StandardFramework::new()
         .configure(|c| c.owners(owners).prefix(","))
+        .help(&MY_HELP)
         .group(&GENERAL_GROUP)
         .group(&COUNT_GROUP)
         .group(&MINIGAMES_GROUP);
@@ -66,6 +92,7 @@ async fn main() {
 
     {
         let db_url: String = env::var("DB_URL").expect("DB_URL not found");
+        println!("{}", db_url);
         let (db_client, conn) = tokio_postgres::connect(&db_url, tokio_postgres::NoTls)
             .await
             .expect("cant connect bha");
@@ -75,7 +102,10 @@ async fn main() {
             }
         });
         let init_script = std::include_str!("../init.sql");
-        db_client.batch_execute(init_script).await.expect("Couldn't run the init script");
+        db_client
+            .batch_execute(init_script)
+            .await
+            .expect("Couldn't run the init script");
         let mut data = client.data.write().await;
         data.insert::<Database>(Arc::new(db_client));
         data.insert::<ShardManagerContainer>(client.shard_manager.clone());

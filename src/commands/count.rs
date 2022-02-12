@@ -118,6 +118,10 @@ pub async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[command]
 pub async fn rm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
+    if query == "" {
+        msg.reply(ctx, "remove what?").await?;
+        return Ok(());
+    }
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()
@@ -200,6 +204,10 @@ pub async fn ls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
         .expect("Expected Database in TypeMap.")
         .clone();
     let rows = db.query("select * from words", &[]).await?;
+    if rows.is_empty() {
+        msg.reply(ctx, "No words stored").await?;
+        return Ok(());
+    }
     msg.channel_id
         .send_message(ctx, |mut m| {
             let mut a: u32 = 1;
