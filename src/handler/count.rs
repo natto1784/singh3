@@ -1,38 +1,26 @@
 use regex::Regex;
 use serenity::model::channel::Message;
-use std::env;
-use tokio_postgres::NoTls;
+use tokio_postgres::Client;
 
-pub async fn count(msg: Message) {
-    let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
-    let (client, conn) = tokio_postgres::connect(&db, NoTls)
-        .await
-        .expect("cant connect bha");
-    tokio::spawn(async move {
-        if let Err(e) = conn.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
+pub async fn count(msg: Message, db: std::sync::Arc<Client>) {
     let id = msg.author.id.as_u64().to_owned().to_string();
-    client
-        .execute(
-            format!(
-                "
-        CREATE TABLE IF NOT EXISTS user{} (
+    db.execute(
+        format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS user{} (
             id              SERIAL PRIMARY KEY,
             name            VARCHAR NOT NULL,
             count           INTEGER NOT NULL
-            )
-    ",
-                id
-            )
-            .as_str(),
-            &[],
+            )"#,
+            id
         )
-        .await
-        .expect("cant create table");
+        .as_str(),
+        &[],
+    )
+    .await
+    .expect("cant create a user table");
 
-    for row in client
+    for row in db
         .query("SELECT name, reg FROM words", &[])
         .await
         .expect("can't get the words to count")
@@ -41,7 +29,7 @@ pub async fn count(msg: Message) {
         let regex: Regex = Regex::new(row.get(1)).unwrap();
         let count = regex.captures_iter(&msg.content).count();
         if count > 0 {
-            let query_result = client
+            let query_result = db
                 .query(
                     format!("SELECT count FROM user{} where name='{}'", id, name).as_str(),
                     &[],
@@ -49,29 +37,27 @@ pub async fn count(msg: Message) {
                 .await
                 .expect("cant select the count");
             if query_result.is_empty() {
-                client
-                    .execute(
-                        format!(
-                            "insert into user{} (name, count) values ('{}', 0)",
-                            id, name
-                        )
-                        .as_str(),
-                        &[],
-                    )
-                    .await
-                    .expect("cant insert shit");
-            }
-            client
-                .execute(
+                db.execute(
                     format!(
-                        "UPDATE user{} SET count = count + {} where name='{}'",
-                        id, count, name
+                        "insert into user{} (name, count) values ('{}', 0)",
+                        id, name
                     )
                     .as_str(),
                     &[],
                 )
                 .await
-                .expect("cant update");
+                .expect("cant insert shit");
+            }
+            db.execute(
+                format!(
+                    "UPDATE user{} SET count = count + {} where name='{}'",
+                    id, count, name
+                )
+                .as_str(),
+                &[],
+            )
+            .await
+            .expect("cant update");
         }
     }
 }

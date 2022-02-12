@@ -5,13 +5,13 @@ authors = [ "Amneesh Singh <natto@weirdnatto.in>" ]
 edition = "2018"
 
 [dependencies]
-tracing = "0.1.22"
-regex = "1.5.4"
-tokio-postgres = "0.7.2"
-rand = "0.8.4"
+tracing = "*"
+regex = "*"
+tokio-postgres = "*"
+rand = "*"
 
 [dependencies.serenity]
-version = "0.10.8"
+version = "0.10.*"
 features = ["cache", "framework", "standard_framework", "rustls_backend", "unstable_discord_api", "collector"]
 
 [dependencies.tokio]

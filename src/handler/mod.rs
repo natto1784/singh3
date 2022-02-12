@@ -1,11 +1,11 @@
-mod interactions;
 mod count;
+mod interactions;
 use serenity::{
     async_trait,
     model::{
+        channel::Message,
         event::ResumedEvent,
         gateway::Ready,
-        channel::Message,
         interactions::{
             ApplicationCommand, Interaction, InteractionData, InteractionResponseType,
             InteractionType,
@@ -29,8 +29,13 @@ impl EventHandler for Handler {
     async fn resume(&self, _: Context, _: ResumedEvent) {
         info!("how th when the");
     }
-    async fn message(&self, _: Context, msg: Message) {
-        count::count(msg).await;
+    async fn message(&self, ctx: Context, msg: Message) {
+        let data_read = ctx.data.read().await;
+        let db_client = data_read
+            .get::<crate::Database>()
+            .expect("Expected Database in TypeMap.")
+            .clone();
+        count::count(msg, db_client).await;
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
@@ -40,7 +45,9 @@ impl EventHandler for Handler {
                     .create_interaction_response(&ctx.http, |response| {
                         response
                             .kind(InteractionResponseType::ChannelMessageWithSource)
-                            .interaction_response_data(|message| interactions::responses(data.name.to_string(), message))
+                            .interaction_response_data(|message| {
+                                interactions::responses(data.name.to_string(), message)
+                            })
                     })
                     .await
                 {

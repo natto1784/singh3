@@ -4,8 +4,6 @@ use serenity::{
     prelude::*,
     utils::Colour,
 };
-use std::env;
-use tokio_postgres::NoTls;
 
 #[command]
 pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
@@ -14,17 +12,14 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         msg.reply(ctx, "bruh kitna kya?").await?;
         return Ok(());
     }
-    let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
-    let (client, conn) = tokio_postgres::connect(&db, NoTls)
-        .await
-        .expect("cant connect bha");
-    tokio::spawn(async move {
-        if let Err(e) = conn.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
+    let data_read = ctx.data.read().await;
+    let db = data_read
+        .get::<crate::Database>()
+        .expect("Expected Database in TypeMap.")
+        .clone();
+
     let id = msg.author.id.to_string();
-    let mut query_helper = client
+    let mut query_helper = db
         .query(
             format!("select name from words where '{}' ~ reg", query).as_str(),
             &[],
@@ -32,7 +27,7 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .await
         .expect("helper query to select count failed");
     if query_helper.is_empty() {
-        query_helper = client
+        query_helper = db
             .query(
                 format!("select name from words where name='{}'", query).as_str(),
                 &[],
@@ -43,7 +38,7 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             msg.reply(
                 ctx,
                 format!(
-                    "No entry for '{}' found. If you want to add it, run 'xxadd {}&<regex>'",
+                    "No entry for '{}' found. If you want to add it, run ',count add {}&<regex>'",
                     query, query
                 ),
             )
@@ -58,7 +53,7 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     };
     for row in query_helper {
         let name: &str = row.get(0);
-        let query_result: i32 = client
+        let query_result: i32 = db
             .query_one(
                 format!("select count from user{} where name='{}'", id, name).as_str(),
                 &[],
@@ -75,9 +70,9 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[command]
 pub async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    let queries = query.split("&").collect::<Vec<&str>>();
+    let queries = query.splitn(2, "&").collect::<Vec<&str>>();
     if queries.len() != 2 {
-        msg.reply(ctx, "Please use the proper syntax: xxadd <name>&<regex>\nIf you don't know what regex is, just do: xxadd <name>&<name>")
+        msg.reply(ctx, "Please use the proper syntax: `,count add <name>&<regex>`\nIf you don't know what regex is, just do: `,count add <name>&<name>`")
             .await?;
         return Ok(());
     }
@@ -85,16 +80,12 @@ pub async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         msg.reply(ctx, "Not a valid regex").await?;
         return Ok(());
     }
-    let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
-    let (client, conn) = tokio_postgres::connect(&db, NoTls)
-        .await
-        .expect("cant connect bha");
-    tokio::spawn(async move {
-        if let Err(e) = conn.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
-    let check_existense = client
+    let data_read = ctx.data.read().await;
+    let db = data_read
+        .get::<crate::Database>()
+        .expect("Expected Database in TypeMap.")
+        .clone();
+    let check_existense = db
         .query(
             format!("select name, reg from words where name='{}'", queries[0]).as_str(),
             &[],
@@ -109,18 +100,17 @@ pub async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .await?;
         return Ok(());
     }
-    client
-        .execute(
-            format!(
-                "insert into words(name, reg, owner) values('{}','(?i){}', '{}')",
-                queries[0],
-                queries[1],
-                msg.author.id.to_string()
-            )
-            .as_str(),
-            &[],
+    db.execute(
+        format!(
+            "insert into words(name, reg, owner) values('{}','(?i){}', '{}')",
+            queries[0],
+            queries[1],
+            msg.author.id.to_string()
         )
-        .await?;
+        .as_str(),
+        &[],
+    )
+    .await?;
     msg.reply(ctx, "Added").await?;
     Ok(())
 }
@@ -128,16 +118,12 @@ pub async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[command]
 pub async fn rm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
-    let (client, conn) = tokio_postgres::connect(&db, NoTls)
-        .await
-        .expect("cant connect bha");
-    tokio::spawn(async move {
-        if let Err(e) = conn.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
-    let owner = client
+    let data_read = ctx.data.read().await;
+    let db = data_read
+        .get::<crate::Database>()
+        .expect("Expected Database in TypeMap.")
+        .clone();
+    let owner = db
         .query(
             format!("select owner from words where name = '{}'", query).as_str(),
             &[],
@@ -150,12 +136,11 @@ pub async fn rm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             return Ok(());
         }
     }
-    client
-        .execute(
-            format!("delete from words where name='{}'", query,).as_str(),
-            &[],
-        )
-        .await?;
+    db.execute(
+        format!("delete from words where name='{}'", query,).as_str(),
+        &[],
+    )
+    .await?;
     msg.reply(ctx, "Deleted if it existed").await?;
     Ok(())
 }
@@ -163,26 +148,25 @@ pub async fn rm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[command]
 pub async fn change(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    let queries = query.split("&").collect::<Vec<&str>>();
+    let queries = query.splitn(2, "&").collect::<Vec<&str>>();
     if queries.len() != 2 {
-        msg.reply(ctx, "Please use the proper syntax\nxxchange <name>&<regex>")
-            .await?;
+        msg.reply(
+            ctx,
+            "Please use the proper syntax\n,count change <name>&<regex>",
+        )
+        .await?;
         return Ok(());
     }
     if queries[1].contains(" ") {
         msg.reply(ctx, "Not a valid regex").await?;
         return Ok(());
     }
-    let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
-    let (client, conn) = tokio_postgres::connect(&db, NoTls)
-        .await
-        .expect("cant connect bha");
-    tokio::spawn(async move {
-        if let Err(e) = conn.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
-    let owner = client
+    let data_read = ctx.data.read().await;
+    let db = data_read
+        .get::<crate::Database>()
+        .expect("Expected Database in TypeMap.")
+        .clone();
+    let owner = db
         .query(
             format!("select owner from words where name = '{}'", queries[0]).as_str(),
             &[],
@@ -195,32 +179,27 @@ pub async fn change(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             return Ok(());
         }
     }
-    client
-        .execute(
-            format!(
-                "update words set reg='(?i){}' where name='{}'",
-                queries[1], queries[0]
-            )
-            .as_str(),
-            &[],
+    db.execute(
+        format!(
+            "update words set reg='(?i){}' where name='{}'",
+            queries[1], queries[0]
         )
-        .await?;
+        .as_str(),
+        &[],
+    )
+    .await?;
     msg.reply(ctx, "Changed the value if it existed").await?;
     Ok(())
 }
 
 #[command]
-pub async fn list(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
-    let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
-    let (client, conn) = tokio_postgres::connect(&db, NoTls)
-        .await
-        .expect("cant connect bha");
-    tokio::spawn(async move {
-        if let Err(e) = conn.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
-    let rows = client.query("select * from words", &[]).await?;
+pub async fn ls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
+    let data_read = ctx.data.read().await;
+    let db = data_read
+        .get::<crate::Database>()
+        .expect("Expected Database in TypeMap.")
+        .clone();
+    let rows = db.query("select * from words", &[]).await?;
     msg.channel_id
         .send_message(ctx, |mut m| {
             let mut a: u32 = 1;
@@ -231,7 +210,7 @@ pub async fn list(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
                         .color(Colour::TEAL);
                     a += 1;
                     for row in group {
-                        let idx: u32 = row.get(0);
+                        let idx: i32 = row.get(0);
                         let name: String = row.get(1);
                         let _reg: String = row.get(2);
                         let owner_id: String = row.get(3);
