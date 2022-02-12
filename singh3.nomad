@@ -6,7 +6,8 @@ job "singh3" {
     count = 1
     network {
       mode = "bridge"
-       port "db" {
+      port "db" {
+        static = 5454
         to = 5432
       }
     }

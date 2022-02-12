@@ -25,7 +25,6 @@ struct General;
 #[group]
 #[commands(kitna,add,rm,change)]
 struct Count;
-
 #[group]
 #[commands(challenge)]
 struct Minigames;

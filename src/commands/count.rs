@@ -2,6 +2,7 @@ use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
     model::prelude::*,
     prelude::*,
+    utils::Colour,
 };
 use std::env;
 use tokio_postgres::NoTls;
@@ -11,7 +12,7 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     if query == "" {
         msg.reply(ctx, "bruh kitna kya?").await?;
-        return Ok(())
+        return Ok(());
     }
     let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
     let (client, conn) = tokio_postgres::connect(&db, NoTls)
@@ -22,7 +23,7 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             eprintln!("connection error: {}", e);
         }
     });
-    let id = msg.author.id.as_u64().to_owned().to_string();
+    let id = msg.author.id.to_string();
     let mut query_helper = client
         .query(
             format!("select name from words where '{}' ~ reg", query).as_str(),
@@ -114,7 +115,7 @@ pub async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 "insert into words(name, reg, owner) values('{}','(?i){}', '{}')",
                 queries[0],
                 queries[1],
-                msg.author.id.as_u64().to_owned().to_string()
+                msg.author.id.to_string()
             )
             .as_str(),
             &[],
@@ -144,7 +145,7 @@ pub async fn rm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
-        if owner_id != msg.author.id.as_u64().to_owned().to_string() {
+        if owner_id != msg.author.id.to_string() {
             msg.reply(ctx, "You don't even own this word").await?;
             return Ok(());
         }
@@ -189,7 +190,7 @@ pub async fn change(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
-        if owner_id != msg.author.id.as_u64().to_owned().to_string() {
+        if owner_id != msg.author.id.to_string() {
             msg.reply(ctx, "You don't even own this word").await?;
             return Ok(());
         }
@@ -205,5 +206,46 @@ pub async fn change(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         )
         .await?;
     msg.reply(ctx, "Changed the value if it existed").await?;
+    Ok(())
+}
+
+#[command]
+pub async fn list(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
+    let db: String = env::var("DB_URL").expect("bhay DB_URL daal na");
+    let (client, conn) = tokio_postgres::connect(&db, NoTls)
+        .await
+        .expect("cant connect bha");
+    tokio::spawn(async move {
+        if let Err(e) = conn.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+    let rows = client.query("select * from words", &[]).await?;
+    msg.channel_id
+        .send_message(ctx, |mut m| {
+            let mut a: u32 = 1;
+            for group in rows.chunks(5) {
+                m = m.embed(|mut e| {
+                    e = e
+                        .title(format!("List of words: Page {}", a))
+                        .color(Colour::TEAL);
+                    a += 1;
+                    for row in group {
+                        let idx: u32 = row.get(0);
+                        let name: String = row.get(1);
+                        let _reg: String = row.get(2);
+                        let owner_id: String = row.get(3);
+                        e = e.field(
+                            format!("{}. {}", idx, name),
+                            format!(" by <@{}>", owner_id),
+                            true,
+                        );
+                    }
+                    e
+                })
+            }
+            m
+        })
+        .await?;
     Ok(())
 }
