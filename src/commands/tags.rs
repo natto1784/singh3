@@ -71,8 +71,11 @@ pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     let queries = query.splitn(2, " ").collect::<Vec<&str>>();
     if queries.len() != 2 && msg.attachments.len() == 0 {
-        msg.reply(ctx, "Please use the proper syntax: `,tadd <name> <value>` or attach something")
-            .await?;
+        msg.reply(
+            ctx,
+            "Please use the proper syntax: `,tadd <name> <value>` or attach something",
+        )
+        .await?;
         return Ok(());
     }
     let data_read = ctx.data.read().await;
@@ -156,8 +159,11 @@ pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     let queries = query.splitn(2, " ").collect::<Vec<&str>>();
     if queries.len() != 2 && msg.attachments.len() == 0 {
-        msg.reply(ctx, "Please use the proper syntax or attach something\n`,tedit <name> <value> `")
-            .await?;
+        msg.reply(
+            ctx,
+            "Please use the proper syntax or attach something\n`,tedit <name> <value> `",
+        )
+        .await?;
         return Ok(());
     }
     let data_read = ctx.data.read().await;
