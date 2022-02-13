@@ -70,8 +70,8 @@ pub async fn tag(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     let queries = query.splitn(2, " ").collect::<Vec<&str>>();
-    if queries.len() != 2 {
-        msg.reply(ctx, "Please use the proper syntax: `,tadd <name> <value>`")
+    if queries.len() != 2 && msg.attachments.len() == 0 {
+        msg.reply(ctx, "Please use the proper syntax: `,tadd <name> <value>` or attach something")
             .await?;
         return Ok(());
     }
@@ -95,8 +95,12 @@ pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             "INSERT INTO tags(name, value, owner) VALUES('{}','{}', '{}')",
             queries[0],
             format!(
-                "{}\n{}",
-                queries[1],
+                "{}{}",
+                if queries.len() == 2 {
+                    format!("{}{}", queries[1], '\n')
+                } else {
+                    "".to_string()
+                },
                 msg.attachments
                     .iter()
                     .map(|x| x.url.clone())
@@ -151,8 +155,8 @@ pub async fn trm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     let queries = query.splitn(2, " ").collect::<Vec<&str>>();
-    if queries.len() != 2 {
-        msg.reply(ctx, "Please use the proper syntax\n`,tedit <name> <value>`")
+    if queries.len() != 2 && msg.attachments.len() == 0 {
+        msg.reply(ctx, "Please use the proper syntax or attach something\n`,tedit <name> <value> `")
             .await?;
         return Ok(());
     }
@@ -178,8 +182,12 @@ pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         format!(
             "UPDATE tags SET value='{}' WHERE name='{}'",
             format!(
-                "{}\n{}",
-                queries[1],
+                "{}{}",
+                if queries.len() == 2 {
+                    format!("{}{}", queries[1], '\n')
+                } else {
+                    "".to_string()
+                },
                 msg.attachments
                     .iter()
                     .map(|x| x.url.clone())
@@ -190,7 +198,8 @@ pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         )
         .as_str(),
         &[],
-    ).await?;
+    )
+    .await?;
     msg.reply(ctx, "Changed the value if it existed").await?;
     Ok(())
 }
