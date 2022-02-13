@@ -39,6 +39,7 @@ struct General;
 #[prefix = "count"]
 #[commands(kitna, add, rm, change, ls)]
 struct Count;
+
 #[group]
 #[commands(challenge)]
 struct Minigames;
@@ -92,7 +93,6 @@ async fn main() {
 
     {
         let db_url: String = env::var("DB_URL").expect("DB_URL not found");
-        println!("{}", db_url);
         let (db_client, conn) = tokio_postgres::connect(&db_url, tokio_postgres::NoTls)
             .await
             .expect("cant connect bha");

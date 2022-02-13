@@ -1,9 +1,17 @@
+use core::time::Duration;
 use serenity::{
+    collector::component_interaction_collector::ComponentInteractionCollectorBuilder,
     framework::standard::{macros::command, Args, CommandResult},
-    model::prelude::*,
+    futures::StreamExt,
+    model::{
+        channel::ReactionType,
+        interactions::{ButtonStyle, InteractionData},
+        prelude::*,
+    },
     prelude::*,
     utils::Colour,
 };
+use tokio_postgres::Row;
 
 #[command]
 pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
@@ -24,16 +32,14 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             format!("select name from words where '{}' ~ reg", query).as_str(),
             &[],
         )
-        .await
-        .expect("helper query to select count failed");
+        .await?;
     if query_helper.is_empty() {
         query_helper = db
             .query(
                 format!("select name from words where name='{}'", query).as_str(),
                 &[],
             )
-            .await
-            .expect("helper query to select count failed");
+            .await?;
         if query_helper.is_empty() {
             msg.reply(
                 ctx,
@@ -58,8 +64,7 @@ pub async fn kitna(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 format!("select count from user{} where name='{}'", id, name).as_str(),
                 &[],
             )
-            .await
-            .expect("cant select the count")
+            .await?
             .get(0);
         reply = reply + &format!("\n{} count for you: {}", name, query_result);
     }
@@ -196,6 +201,46 @@ pub async fn change(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
+macro_rules! make_embed {
+    ($e: expr, $cur: expr, $group: expr) => {{
+        $e = $e
+            .title(format!("List of words: Page {}", $cur))
+            .color(Colour::TEAL);
+        for row in $group {
+            let idx: i32 = row.get(0);
+            let name: String = row.get(1);
+            let owner_id: String = row.get(3);
+            $e = $e.field(
+                format!("{}. {}", idx, name),
+                format!(" by <@{}>", owner_id),
+                true,
+            );
+        }
+        $e
+    }};
+}
+
+macro_rules! make_terminal_components {
+    ($c: expr, $terminal: expr ) => {{
+        $c.create_action_row(|ar| {
+            ar.create_button(|b| {
+                b.style(ButtonStyle::Primary)
+                    .label("Prev")
+                    .emoji(ReactionType::Unicode("\u{2B05}".to_string()))
+                    .custom_id("prev")
+                    .disabled($terminal == "first")
+            })
+            .create_button(|b| {
+                b.style(ButtonStyle::Primary)
+                    .label("Next")
+                    .emoji(ReactionType::Unicode("\u{27A1}".to_string()))
+                    .custom_id("next")
+                    .disabled($terminal == "last")
+            })
+        })
+    }};
+}
+
 #[command]
 pub async fn ls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
     let data_read = ctx.data.read().await;
@@ -208,31 +253,69 @@ pub async fn ls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
         msg.reply(ctx, "No words stored").await?;
         return Ok(());
     }
-    msg.channel_id
-        .send_message(ctx, |mut m| {
-            let mut a: u32 = 1;
-            for group in rows.chunks(5) {
-                m = m.embed(|mut e| {
-                    e = e
-                        .title(format!("List of words: Page {}", a))
-                        .color(Colour::TEAL);
-                    a += 1;
-                    for row in group {
-                        let idx: i32 = row.get(0);
-                        let name: String = row.get(1);
-                        let _reg: String = row.get(2);
-                        let owner_id: String = row.get(3);
-                        e = e.field(
-                            format!("{}. {}", idx, name),
-                            format!(" by <@{}>", owner_id),
-                            true,
-                        );
-                    }
-                    e
-                })
-            }
-            m
+    let groups: Vec<&[Row]> = rows.chunks(5).collect();
+    let mut cur = 1;
+
+    let message = msg
+        .channel_id
+        .send_message(ctx, |m| {
+            m.embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
+                .components(|c| make_terminal_components!(c, "first"))
         })
         .await?;
+    let mut collector = ComponentInteractionCollectorBuilder::new(&ctx)
+        .timeout(Duration::from_secs(90))
+        .author_id(msg.author.id)
+        .message_id(message.id)
+        .await;
+    while let Some(interaction) = collector.next().await {
+        if let InteractionData::MessageComponent(component) = interaction.data.as_ref().unwrap() {
+            match component.custom_id.as_ref() {
+                "next" => {
+                    if cur != groups.len() {
+                        let _ = interaction
+                            .create_interaction_response(&ctx, |r| {
+                                r.kind(InteractionResponseType::UpdateMessage)
+                                    .interaction_response_data(|m| {
+                                        cur += 1;
+                                        m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
+                                            .components(|c| {
+                                                make_terminal_components!(
+                                                    c,
+                                                    if cur == groups.len() {
+                                                        "last"
+                                                    } else {
+                                                        "mid"
+                                                    }
+                                                )
+                                            })
+                                    })
+                            })
+                            .await;
+                    }
+                }
+                "prev" => {
+                    if cur != 1 {
+                        let _ = interaction
+                            .create_interaction_response(&ctx, |r| {
+                                r.kind(InteractionResponseType::UpdateMessage)
+                                    .interaction_response_data(|m| {
+                                        cur -= 1;
+                                        m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
+                                            .components(|c| {
+                                                make_terminal_components!(
+                                                    c,
+                                                    if cur == 1 { "first" } else { "mid" }
+                                                )
+                                            })
+                                    })
+                            })
+                            .await;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
     Ok(())
 }
