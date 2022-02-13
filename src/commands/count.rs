@@ -160,11 +160,8 @@ pub async fn cedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     let queries = query.splitn(2, "&").collect::<Vec<&str>>();
     if queries.len() != 2 {
-        msg.reply(
-            ctx,
-            "Please use the proper syntax\n,cedit <name>&<regex>",
-        )
-        .await?;
+        msg.reply(ctx, "Please use the proper syntax\n,cedit <name>&<regex>")
+            .await?;
         return Ok(());
     }
     if queries[1].contains(" ") {
@@ -208,9 +205,9 @@ macro_rules! make_embed {
             .title(format!("List of words: Page {}", $cur))
             .color(Colour::TEAL);
         for row in $group {
-            let idx: i32 = row.get(0);
+            let idx: i64 = row.get(0);
             let name: String = row.get(1);
-            let owner_id: String = row.get(3);
+            let owner_id: String = row.get(2);
             $e = $e.field(
                 format!("{}. {}", idx, name),
                 format!(" by <@{}>", owner_id),
@@ -255,7 +252,9 @@ pub async fn cls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
         .get::<crate::Database>()
         .expect("Expected Database in TypeMap.")
         .clone();
-    let rows = db.query("SELECT * FROM words", &[]).await?;
+    let rows = db
+        .query("SELECT ROW_NUMBER() OVER (ORDER BY id), name, owner FROM words", &[])
+        .await?;
     if rows.is_empty() {
         msg.reply(ctx, "No words stored").await?;
         return Ok(());

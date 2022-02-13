@@ -216,9 +216,9 @@ macro_rules! make_embed {
             .title(format!("List of tags: Page {}", $cur))
             .color(Colour::FABLED_PINK);
         for row in $group {
-            let idx: i32 = row.get(0);
+            let idx: i64 = row.get(0);
             let name: String = row.get(1);
-            let owner_id: String = row.get(3);
+            let owner_id: String = row.get(2);
             $e = $e.field(
                 format!("{}. {}", idx, name),
                 format!(" by <@{}>", owner_id),
@@ -263,7 +263,12 @@ pub async fn tls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
         .get::<crate::Database>()
         .expect("Expected Database in TypeMap.")
         .clone();
-    let rows = db.query("SELECT * FROM tags", &[]).await?;
+    let rows = db
+        .query(
+            "SELECT ROW_NUMBER() OVER (ORDER BY id), name, owner FROM tags",
+            &[],
+        )
+        .await?;
     if rows.is_empty() {
         msg.reply(ctx, "No tags stored").await?;
         return Ok(());
