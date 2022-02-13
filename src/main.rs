@@ -3,6 +3,7 @@ mod handler;
 use commands::count::*;
 use commands::general::*;
 use commands::minigames::*;
+use commands::tags::*;
 use handler::Handler;
 use serenity::{
     client::bridge::gateway::ShardManager,
@@ -36,9 +37,12 @@ impl TypeMapKey for Database {
 struct General;
 
 #[group]
-#[prefix = "count"]
-#[commands(kitna, add, rm, change, ls)]
+#[commands(count, cadd, crm, cedit, cls)]
 struct Count;
+
+#[group]
+#[commands(tag, tadd, trm, tedit, tls)]
+pub struct Tags;
 
 #[group]
 #[commands(challenge)]
@@ -82,6 +86,7 @@ async fn main() {
         .help(&MY_HELP)
         .group(&GENERAL_GROUP)
         .group(&COUNT_GROUP)
+        .group(&TAGS_GROUP)
         .group(&MINIGAMES_GROUP);
 
     let mut client = Client::builder(&token)

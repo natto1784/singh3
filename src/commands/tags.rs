@@ -14,11 +14,11 @@ use serenity::{
 use tokio_postgres::Row;
 
 #[command]
-#[aliases("kitna")]
-pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let query: String = args.raw().collect::<Vec<&str>>().join(" ");
+#[aliases("t")]
+pub async fn tag(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let query: String = args.raw().collect::<Vec<&str>>().join("");
     if query == "" {
-        msg.reply(ctx, "bruh kitna kya?").await?;
+        msg.reply(ctx, "Mention the tag retard").await?;
         return Ok(());
     }
     let data_read = ctx.data.read().await;
@@ -27,63 +27,52 @@ pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .expect("Expected Database in TypeMap.")
         .clone();
 
-    let id = msg.author.id.to_string();
-    let mut query_helper = db
+    let query_helper = db
         .query(
-            format!("SELECT name FROM words WHERE '{}' ~ reg", query).as_str(),
+            format!("SELECT name, value FROM tags WHERE name='{}'", query).as_str(),
             &[],
         )
         .await?;
     if query_helper.is_empty() {
-        query_helper = db
+        let leven = db
             .query(
-                format!("SELECT name FROM words WHERE name='{}'", query).as_str(),
-                &[],
-            )
-            .await?;
-        if query_helper.is_empty() {
-            msg.reply(
-                ctx,
                 format!(
-                    "No entry for '{}' found. If you want to add it, run ',cadd {}&<regex>'",
-                    query, query
-                ),
-            )
-            .await?;
-            return Ok(());
-        }
-    }
-    let mut reply: String = if query_helper.len() == 1 {
-        String::new()
-    } else {
-        format!("{} patterns matched", query_helper.len())
-    };
-    for row in query_helper {
-        let name: &str = row.get(0);
-        let query_result: i32 = db
-            .query_one(
-                format!("SELECT count FROM user{} WHERE name='{}'", id, name).as_str(),
+                    "SELECT name FROM tags WHERE levenshtein(name, '{}') < 2",
+                    query
+                )
+                .as_str(),
                 &[],
             )
-            .await?
-            .get(0);
-        reply = reply + &format!("\n{} count for you: {}", name, query_result);
+            .await?;
+        let l = if leven.is_empty() {
+            "".to_string()
+        } else {
+            let leven_name: String = leven[0].get(0);
+            format!("\nDid you mean `{}`?", leven_name)
+        };
+
+        msg.reply(
+            ctx,
+            format!(
+                "No entry for '{}' found. If you want to add it, run `,tadd {} <value>`{}",
+                query, query, l
+            ),
+        )
+        .await?;
+        return Ok(());
     }
-    msg.reply(ctx, reply).await?;
+    let value: String = query_helper[0].get(1);
+    msg.reply(ctx, value).await?;
     Ok(())
 }
 
 #[command]
-pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    let queries = query.splitn(2, "&").collect::<Vec<&str>>();
+    let queries = query.splitn(2, " ").collect::<Vec<&str>>();
     if queries.len() != 2 {
-        msg.reply(ctx, "Please use the proper syntax: `,cadd <name>&<regex>`\nIf you don't know what regex is, just do: `,cadd <name>&<name>`")
+        msg.reply(ctx, "Please use the proper syntax: `,tadd <name> <value>`")
             .await?;
-        return Ok(());
-    }
-    if queries[1].contains(" ") {
-        msg.reply(ctx, "Not a valid regex").await?;
         return Ok(());
     }
     let data_read = ctx.data.read().await;
@@ -93,24 +82,27 @@ pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .clone();
     let check_existense = db
         .query(
-            format!("SELECT name, reg FROM words WHERE name='{}'", queries[0]).as_str(),
+            format!("SELECT name FROM tags WHERE name='{}'", queries[0]).as_str(),
             &[],
         )
         .await?;
     if check_existense.len() != 0 {
-        let reg: String = check_existense[0].get(1);
-        msg.reply(
-            ctx,
-            format!("This word already exists with the regex '{}'", reg),
-        )
-        .await?;
+        msg.reply(ctx, format!("This tag already exists")).await?;
         return Ok(());
     }
     db.execute(
         format!(
-            "INSERT INTO words(name, reg, owner) VALUES('{}','(?i){}', '{}')",
+            "INSERT INTO tags(name, value, owner) VALUES('{}','{}', '{}')",
             queries[0],
-            queries[1],
+            format!(
+                "{}\n{}",
+                queries[1],
+                msg.attachments
+                    .iter()
+                    .map(|x| x.url.clone())
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            ),
             msg.author.id.to_string()
         )
         .as_str(),
@@ -122,7 +114,7 @@ pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
-pub async fn crm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+pub async fn trm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     if query == "" {
         msg.reply(ctx, "remove what?").await?;
@@ -135,19 +127,19 @@ pub async fn crm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .clone();
     let owner = db
         .query(
-            format!("SELECT owner FROM words WHERE name = '{}'", query).as_str(),
+            format!("SELECT owner FROM tags WHERE name = '{}'", query).as_str(),
             &[],
         )
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
         if owner_id != msg.author.id.to_string() {
-            msg.reply(ctx, "You don't even own this word").await?;
+            msg.reply(ctx, "You don't even own this tag").await?;
             return Ok(());
         }
     }
     db.execute(
-        format!("DELETE FROM words WHERE name='{}'", query,).as_str(),
+        format!("DELETE FROM tags WHERE name='{}'", query,).as_str(),
         &[],
     )
     .await?;
@@ -156,19 +148,12 @@ pub async fn crm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
-pub async fn cedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    let queries = query.splitn(2, "&").collect::<Vec<&str>>();
+    let queries = query.splitn(2, " ").collect::<Vec<&str>>();
     if queries.len() != 2 {
-        msg.reply(
-            ctx,
-            "Please use the proper syntax\n,cedit <name>&<regex>",
-        )
-        .await?;
-        return Ok(());
-    }
-    if queries[1].contains(" ") {
-        msg.reply(ctx, "Not a valid regex").await?;
+        msg.reply(ctx, "Please use the proper syntax\n`,tedit <name> <value>`")
+            .await?;
         return Ok(());
     }
     let data_read = ctx.data.read().await;
@@ -178,26 +163,34 @@ pub async fn cedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .clone();
     let owner = db
         .query(
-            format!("SELECT owner FROM words WHERE name = '{}'", queries[0]).as_str(),
+            format!("SELECT owner FROM tags WHERE name = '{}'", queries[0]).as_str(),
             &[],
         )
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
         if owner_id != msg.author.id.to_string() {
-            msg.reply(ctx, "You don't even own this word").await?;
+            msg.reply(ctx, "You don't even own this tag").await?;
             return Ok(());
         }
     }
     db.execute(
         format!(
-            "UPDATE words SET reg='(?i){}' WHERE name='{}'",
-            queries[1], queries[0]
+            "UPDATE tags SET value='{}' WHERE name='{}'",
+            format!(
+                "{}\n{}",
+                queries[1],
+                msg.attachments
+                    .iter()
+                    .map(|x| x.url.clone())
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            ),
+            queries[0]
         )
         .as_str(),
         &[],
-    )
-    .await?;
+    ).await?;
     msg.reply(ctx, "Changed the value if it existed").await?;
     Ok(())
 }
@@ -205,8 +198,8 @@ pub async fn cedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 macro_rules! make_embed {
     ($e: expr, $cur: expr, $group: expr) => {{
         $e = $e
-            .title(format!("List of words: Page {}", $cur))
-            .color(Colour::TEAL);
+            .title(format!("List of tags: Page {}", $cur))
+            .color(Colour::FABLED_PINK);
         for row in $group {
             let idx: i32 = row.get(0);
             let name: String = row.get(1);
@@ -249,15 +242,15 @@ macro_rules! make_terminal_components {
 }
 
 #[command]
-pub async fn cls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
+pub async fn tls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()
         .expect("Expected Database in TypeMap.")
         .clone();
-    let rows = db.query("SELECT * FROM words", &[]).await?;
+    let rows = db.query("SELECT * FROM tags", &[]).await?;
     if rows.is_empty() {
-        msg.reply(ctx, "No words stored").await?;
+        msg.reply(ctx, "No tags stored").await?;
         return Ok(());
     }
     let groups: Vec<&[Row]> = rows.chunks(5).collect();
