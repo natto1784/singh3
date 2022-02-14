@@ -1,4 +1,4 @@
-![Concourse CI](https://ci.weirdnatto.in/api/v1/teams/main/pipelines/singh3/badge) [![Docker](https://img.shields.io/docker/image-size/natto17/singh3.svg)](https://hub.docker.com/repository/docker/natto17/singh3)
+[![Concourse CI](https://ci.weirdnatto.in/api/v1/teams/main/pipelines/singh3/badge)](https://ci.weirdnatto.in/teams/main/pipelines/singh3) [![Docker](https://img.shields.io/docker/image-size/natto17/singh3.svg)](https://hub.docker.com/repository/docker/natto17/singh3)
 # Singh3
 My stupid discord bot that I will probably stop maintaining again like I did for the past 8+ months
 Real shit code
