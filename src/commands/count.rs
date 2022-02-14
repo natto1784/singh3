@@ -14,7 +14,7 @@ use serenity::{
 use tokio_postgres::Row;
 
 #[command]
-#[aliases("kitna")]
+#[aliases("kitna", "c")]
 pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     if query == "" {
@@ -122,7 +122,8 @@ pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
-pub async fn crm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+#[aliases("crm")]
+pub async fn cremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     if query == "" {
         msg.reply(ctx, "remove what?").await?;
@@ -246,7 +247,8 @@ macro_rules! make_terminal_components {
 }
 
 #[command]
-pub async fn cls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
+#[aliases("clist")]
+pub async fn clist(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()

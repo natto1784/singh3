@@ -37,11 +37,11 @@ impl TypeMapKey for Database {
 struct General;
 
 #[group]
-#[commands(count, cadd, crm, cedit, cls)]
+#[commands(count, cadd, cremove, cedit, clist)]
 struct Count;
 
 #[group]
-#[commands(tag, tadd, trm, tedit, tls)]
+#[commands(tag, tadd, tcopy, tremove, tedit, tlist)]
 pub struct Tags;
 
 #[group]

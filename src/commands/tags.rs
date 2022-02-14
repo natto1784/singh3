@@ -121,7 +121,50 @@ pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
-pub async fn trm(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+#[aliases("tcp")]
+pub async fn tcopy(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let queries: Vec<&str> = args.raw().collect::<Vec<&str>>();
+    if queries.len() != 2 {
+        msg.reply(
+            ctx,
+            "Please use the proper syntax: `,tcopy <original> <new>`",
+        )
+        .await?;
+        return Ok(());
+    }
+    let data_read = ctx.data.read().await;
+    let db = data_read
+        .get::<crate::Database>()
+        .expect("Expected Database in TypeMap.")
+        .clone();
+    let check_existense = db
+        .query(
+            format!("SELECT name FROM tags WHERE name='{}'", queries[0]).as_str(),
+            &[],
+        )
+        .await?;
+    if check_existense.len() == 0 {
+        msg.reply(ctx, format!("This tag does not exist")).await?;
+        return Ok(());
+    }
+    db.execute(
+        format!(
+            "INSERT INTO tags(name, value, owner) SELECT '{}', value, '{}' FROM tags WHERE name = '{}'",
+            queries[1],
+            msg.author.id.to_string(),
+            queries[0]
+        )
+        .as_str(),
+        &[],
+    )
+    .await?;
+    msg.reply(ctx, "Copied").await?;
+    Ok(())
+}
+
+#[command]
+#[aliases("trm")]
+pub async fn tremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     if query == "" {
         msg.reply(ctx, "remove what?").await?;
@@ -257,7 +300,8 @@ macro_rules! make_terminal_components {
 }
 
 #[command]
-pub async fn tls(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
+#[aliases("tls")]
+pub async fn tlist(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()
