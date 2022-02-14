@@ -1,3 +1,4 @@
+use crate::commands::macros::*;
 use core::time::Duration;
 use serenity::{
     collector::component_interaction_collector::ComponentInteractionCollectorBuilder,
@@ -5,7 +6,7 @@ use serenity::{
     futures::StreamExt,
     model::{
         channel::ReactionType,
-        interactions::{ButtonStyle, InteractionData},
+        interactions::{message_component::ButtonStyle, InteractionResponseType},
         prelude::*,
     },
     prelude::*,
@@ -193,43 +194,27 @@ macro_rules! make_embed {
             $e = $e.field(
                 format!("{}. {}", idx, name),
                 format!(" by <@{}>", owner_id),
-                true,
+                false,
             );
         }
         $e
     }};
 }
 
-macro_rules! make_terminal_components {
-    ($c: expr, $terminal: expr ) => {{
-        $c.create_action_row(|ar| {
-            ar.create_button(|b| {
-                b.style(ButtonStyle::Primary)
-                    .label("Prev")
-                    .emoji(ReactionType::Unicode("\u{2B05}".to_string()))
-                    .custom_id("prev")
-                    .disabled($terminal == "first")
-            })
-            .create_button(|b| {
-                b.style(ButtonStyle::Primary)
-                    .label("Next")
-                    .emoji(ReactionType::Unicode("\u{27A1}".to_string()))
-                    .custom_id("next")
-                    .disabled($terminal == "last")
-            })
-            .create_button(|b| {
-                b.style(ButtonStyle::Danger)
-                    .label("Delete")
-                    .emoji(ReactionType::Unicode("\u{1F5D1}".to_string()))
-                    .custom_id("delete")
-            })
-        })
-    }};
-}
-
 #[command]
-#[aliases("clist")]
-pub async fn clist(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
+#[aliases("cls")]
+pub async fn clist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let size = if args.len() > 0 {
+        args.single::<usize>()?
+    } else {
+        5usize
+    };
+
+    if size > 15 {
+        msg.reply(ctx, "Please input a number less than 15").await?;
+        ()
+    }
+
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()
@@ -245,14 +230,14 @@ pub async fn clist(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
         msg.reply(ctx, "No words stored").await?;
         return Ok(());
     }
-    let groups: Vec<&[Row]> = rows.chunks(5).collect();
+    let groups: Vec<&[Row]> = rows.chunks(size).collect();
     let mut cur = 1;
 
     let message = msg
         .channel_id
         .send_message(ctx, |m| {
             m.embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                .components(|c| make_terminal_components!(c, "first"))
+                .components(|c| make_terminal_components!(c, "first", groups.len()))
         })
         .await?;
     let mut collector = ComponentInteractionCollectorBuilder::new(&ctx)
@@ -261,56 +246,104 @@ pub async fn clist(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
         .message_id(message.id)
         .await;
     while let Some(interaction) = collector.next().await {
-        if let InteractionData::MessageComponent(component) = interaction.data.as_ref().unwrap() {
-            match component.custom_id.as_ref() {
-                "next" => {
-                    if cur != groups.len() {
-                        cur += 1;
-                        let _ = interaction
-                            .create_interaction_response(&ctx, |r| {
-                                r.kind(InteractionResponseType::UpdateMessage)
-                                    .interaction_response_data(|m| {
-                                        m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                                            .components(|c| {
-                                                make_terminal_components!(
-                                                    c,
-                                                    if cur == groups.len() {
-                                                        "last"
-                                                    } else {
-                                                        "mid"
-                                                    }
-                                                )
-                                            })
-                                    })
-                            })
-                            .await;
-                    }
+        match interaction.data.custom_id.as_ref() {
+            "next" => {
+                if cur != groups.len() {
+                    cur += 1;
+                    let _ = interaction
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::UpdateMessage)
+                                .interaction_response_data(|m| {
+                                    m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
+                                        .components(|c| {
+                                            make_terminal_components!(
+                                                c,
+                                                if cur == groups.len() { "last" } else { "mid" },
+                                                groups.len()
+                                            )
+                                        })
+                                })
+                        })
+                        .await;
                 }
-                "prev" => {
-                    if cur != 1 {
-                        cur -= 1;
-                        let _ = interaction
-                            .create_interaction_response(&ctx, |r| {
-                                r.kind(InteractionResponseType::UpdateMessage)
-                                    .interaction_response_data(|m| {
-                                        m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                                            .components(|c| {
-                                                make_terminal_components!(
-                                                    c,
-                                                    if cur == 1 { "first" } else { "mid" }
-                                                )
-                                            })
-                                    })
-                            })
-                            .await;
-                    }
-                }
-                "delete" => {
-                    message.delete(ctx).await?;
-                    msg.delete(ctx).await?;
-                }
-                _ => {}
             }
+            "prev" => {
+                if cur != 1 {
+                    cur -= 1;
+                    let _ = interaction
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::UpdateMessage)
+                                .interaction_response_data(|m| {
+                                    m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
+                                        .components(|c| {
+                                            make_terminal_components!(
+                                                c,
+                                                if cur == 1 { "first" } else { "mid" },
+                                                groups.len()
+                                            )
+                                        })
+                                })
+                        })
+                        .await;
+                }
+            }
+            "first" => {
+                cur = 1;
+                let _ = interaction
+                    .create_interaction_response(&ctx, |r| {
+                        r.kind(InteractionResponseType::UpdateMessage)
+                            .interaction_response_data(|m| {
+                                m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
+                                    .components(|c| {
+                                        make_terminal_components!(c, "first", groups.len())
+                                    })
+                            })
+                    })
+                    .await;
+            }
+            "last" => {
+                cur = groups.len();
+                let _ = interaction
+                    .create_interaction_response(&ctx, |r| {
+                        r.kind(InteractionResponseType::UpdateMessage)
+                            .interaction_response_data(|m| {
+                                m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
+                                    .components(|c| {
+                                        make_terminal_components!(c, "last", groups.len())
+                                    })
+                            })
+                    })
+                    .await;
+            }
+            "delete" => {
+                message.delete(ctx).await?;
+                msg.delete(ctx).await?;
+            }
+            "range" => {
+                cur = interaction.data.values[0].parse().unwrap();
+                let _ = interaction
+                    .create_interaction_response(&ctx, |r| {
+                        r.kind(InteractionResponseType::UpdateMessage)
+                            .interaction_response_data(|m| {
+                                m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
+                                    .components(|c| {
+                                        make_terminal_components!(
+                                            c,
+                                            if cur == 1 {
+                                                "first"
+                                            } else if cur == groups.len() {
+                                                "last"
+                                            } else {
+                                                "mid"
+                                            },
+                                            groups.len()
+                                        )
+                                    })
+                            })
+                    })
+                    .await;
+            }
+            _ => {}
         }
     }
     Ok(())
