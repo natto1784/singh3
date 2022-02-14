@@ -28,20 +28,13 @@ pub async fn tag(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .clone();
 
     let query_helper = db
-        .query(
-            format!("SELECT name, value FROM tags WHERE name='{}'", query).as_str(),
-            &[],
-        )
+        .query("SELECT name, value FROM tags WHERE name=$1", &[&query])
         .await?;
     if query_helper.is_empty() {
         let leven = db
             .query(
-                format!(
-                    "SELECT name FROM tags WHERE levenshtein(name, '{}') < 2",
-                    query
-                )
-                .as_str(),
-                &[],
+                "SELECT name FROM tags WHERE levenshtein(name, $1) < 2",
+                &[&query],
             )
             .await?;
         let l = if leven.is_empty() {
@@ -84,20 +77,17 @@ pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .expect("Expected Database in TypeMap.")
         .clone();
     let check_existense = db
-        .query(
-            format!("SELECT name FROM tags WHERE name='{}'", queries[0]).as_str(),
-            &[],
-        )
+        .query("SELECT name FROM tags WHERE name=$1", &[&queries[0]])
         .await?;
     if check_existense.len() != 0 {
         msg.reply(ctx, format!("This tag already exists")).await?;
         return Ok(());
     }
     db.execute(
-        format!(
-            "INSERT INTO tags(name, value, owner) VALUES('{}','{}', '{}')",
-            queries[0],
-            format!(
+        "INSERT INTO tags(name, value, owner) VALUES($1, $2, $3)",
+        &[
+            &queries[0],
+            &format!(
                 "{}{}",
                 if queries.len() == 2 {
                     format!("{}{}", queries[1], '\n')
@@ -110,10 +100,8 @@ pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     .collect::<Vec<String>>()
                     .join("\n")
             ),
-            msg.author.id.to_string()
-        )
-        .as_str(),
-        &[],
+            &msg.author.id.to_string(),
+        ],
     )
     .await?;
     msg.reply(ctx, "Added").await?;
@@ -138,24 +126,15 @@ pub async fn tcopy(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .expect("Expected Database in TypeMap.")
         .clone();
     let check_existense = db
-        .query(
-            format!("SELECT name FROM tags WHERE name='{}'", queries[0]).as_str(),
-            &[],
-        )
+        .query("SELECT name FROM tags WHERE name=$1", &[&queries[0]])
         .await?;
     if check_existense.len() == 0 {
         msg.reply(ctx, format!("This tag does not exist")).await?;
         return Ok(());
     }
     db.execute(
-        format!(
-            "INSERT INTO tags(name, value, owner) SELECT '{}', value, '{}' FROM tags WHERE name = '{}'",
-            queries[1],
-            msg.author.id.to_string(),
-            queries[0]
-        )
-        .as_str(),
-        &[],
+        "INSERT INTO tags(name, value, owner) SELECT $1, value, $2 FROM tags WHERE name=$3",
+        &[&queries[1], &msg.author.id.to_string(), &queries[0]],
     )
     .await?;
     msg.reply(ctx, "Copied").await?;
@@ -176,10 +155,7 @@ pub async fn tremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         .expect("Expected Database in TypeMap.")
         .clone();
     let owner = db
-        .query(
-            format!("SELECT owner FROM tags WHERE name = '{}'", query).as_str(),
-            &[],
-        )
+        .query("SELECT owner FROM tags WHERE name=$1", &[&query])
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
@@ -188,11 +164,8 @@ pub async fn tremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
             return Ok(());
         }
     }
-    db.execute(
-        format!("DELETE FROM tags WHERE name='{}'", query,).as_str(),
-        &[],
-    )
-    .await?;
+    db.execute("DELETE FROM tags WHERE name=$1", &[&query])
+        .await?;
     msg.reply(ctx, "Deleted if it existed").await?;
     Ok(())
 }
@@ -215,10 +188,7 @@ pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .expect("Expected Database in TypeMap.")
         .clone();
     let owner = db
-        .query(
-            format!("SELECT owner FROM tags WHERE name = '{}'", queries[0]).as_str(),
-            &[],
-        )
+        .query("SELECT owner FROM tags WHERE name=$1", &[&queries[0]])
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
@@ -228,9 +198,9 @@ pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         }
     }
     db.execute(
-        format!(
-            "UPDATE tags SET value='{}' WHERE name='{}'",
-            format!(
+        "UPDATE tags SET value=$1 WHERE name=$2",
+        &[
+            &format!(
                 "{}{}",
                 if queries.len() == 2 {
                     format!("{}{}", queries[1], '\n')
@@ -243,10 +213,8 @@ pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     .collect::<Vec<String>>()
                     .join("\n")
             ),
-            queries[0]
-        )
-        .as_str(),
-        &[],
+            &queries[0],
+        ],
     )
     .await?;
     msg.reply(ctx, "Changed the value if it existed").await?;

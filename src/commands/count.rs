@@ -18,7 +18,7 @@ use tokio_postgres::Row;
 pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
     if query == "" {
-        msg.reply(ctx, "bruh kitna kya?").await?;
+        msg.reply(ctx, "Count what?").await?;
         return Ok(());
     }
     let data_read = ctx.data.read().await;
@@ -29,23 +29,18 @@ pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     let id = msg.author.id.to_string();
     let mut query_helper = db
-        .query(
-            format!("SELECT name FROM words WHERE '{}' ~ reg", query).as_str(),
-            &[],
-        )
+        .query("SELECT name FROM words WHERE $1 ~ reg", &[&query])
         .await?;
+
     if query_helper.is_empty() {
         query_helper = db
-            .query(
-                format!("SELECT name FROM words WHERE name='{}'", query).as_str(),
-                &[],
-            )
+            .query("SELECT name FROM words WHERE name=$1", &[&query])
             .await?;
         if query_helper.is_empty() {
             msg.reply(
                 ctx,
                 format!(
-                    "No entry for '{}' found. If you want to add it, run ',cadd {}&<regex>'",
+                    "No entry for '{}' found. If you want to add it, run `,cadd {}&<regex>`",
                     query, query
                 ),
             )
@@ -60,14 +55,18 @@ pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     };
     for row in query_helper {
         let name: &str = row.get(0);
-        let query_result: i32 = db
-            .query_one(
-                format!("SELECT count FROM user{} WHERE name='{}'", id, name).as_str(),
-                &[],
+        let count_query = db
+            .query(
+                format!("SELECT count FROM user{} WHERE name=$1", id).as_str(),
+                &[&name],
             )
-            .await?
-            .get(0);
-        reply = reply + &format!("\n{} count for you: {}", name, query_result);
+            .await?;
+        let query_result = if count_query.is_empty() {
+            0
+        } else {
+            count_query[0].get(0)
+        };
+        reply += &format!("\n{} count for you: {}", name, query_result);
     }
     msg.reply(ctx, reply).await?;
     Ok(())
@@ -92,10 +91,7 @@ pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .expect("Expected Database in TypeMap.")
         .clone();
     let check_existense = db
-        .query(
-            format!("SELECT name, reg FROM words WHERE name='{}'", queries[0]).as_str(),
-            &[],
-        )
+        .query("SELECT name, reg FROM words WHERE name=$1", &[&queries[0]])
         .await?;
     if check_existense.len() != 0 {
         let reg: String = check_existense[0].get(1);
@@ -107,14 +103,12 @@ pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         return Ok(());
     }
     db.execute(
-        format!(
-            "INSERT INTO words(name, reg, owner) VALUES('{}','(?i){}', '{}')",
-            queries[0],
-            queries[1],
-            msg.author.id.to_string()
-        )
-        .as_str(),
-        &[],
+        "INSERT INTO words(name, reg, owner) VALUES($1, $2, $3)",
+        &[
+            &queries[0],
+            &("(?i)".to_string() + queries[1]),
+            &msg.author.id.to_string(),
+        ],
     )
     .await?;
     msg.reply(ctx, "Added").await?;
@@ -135,10 +129,7 @@ pub async fn cremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         .expect("Expected Database in TypeMap.")
         .clone();
     let owner = db
-        .query(
-            format!("SELECT owner FROM words WHERE name = '{}'", query).as_str(),
-            &[],
-        )
+        .query("SELECT owner FROM words WHERE name=$1", &[&query])
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
@@ -147,11 +138,8 @@ pub async fn cremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
             return Ok(());
         }
     }
-    db.execute(
-        format!("DELETE FROM words WHERE name='{}'", query,).as_str(),
-        &[],
-    )
-    .await?;
+    db.execute("DELETE FROM words WHERE name=$1", &[&query])
+        .await?;
     msg.reply(ctx, "Deleted if it existed").await?;
     Ok(())
 }
@@ -175,10 +163,7 @@ pub async fn cedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .expect("Expected Database in TypeMap.")
         .clone();
     let owner = db
-        .query(
-            format!("SELECT owner FROM words WHERE name = '{}'", queries[0]).as_str(),
-            &[],
-        )
+        .query("SELECT owner FROM words WHERE name=$1", &[&queries[0]])
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
@@ -188,12 +173,8 @@ pub async fn cedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         }
     }
     db.execute(
-        format!(
-            "UPDATE words SET reg='(?i){}' WHERE name='{}'",
-            queries[1], queries[0]
-        )
-        .as_str(),
-        &[],
+        "UPDATE words SET reg=$1 WHERE name=$2",
+        &[&("(?i)".to_string() + queries[1]), &queries[0]],
     )
     .await?;
     msg.reply(ctx, "Changed the value if it existed").await?;
@@ -255,7 +236,10 @@ pub async fn clist(ctx: &Context, msg: &Message, _: Args) -> CommandResult {
         .expect("Expected Database in TypeMap.")
         .clone();
     let rows = db
-        .query("SELECT ROW_NUMBER() OVER (ORDER BY id), name, owner FROM words", &[])
+        .query(
+            "SELECT ROW_NUMBER() OVER (ORDER BY id), name, owner FROM words",
+            &[],
+        )
         .await?;
     if rows.is_empty() {
         msg.reply(ctx, "No words stored").await?;
