@@ -1,0 +1,111 @@
+resource_types:
+  - name: nomad
+    type: registry-image
+    source:
+      repository: natto17/concourse-nomad-resource
+      tag: latest
+
+resources:
+- name: target-image
+  type: registry-image
+  icon: docker
+  source:
+    repository: ((docker.user))/singh3
+    tag: latest
+    username: ((docker.user))
+    password: ((docker.pass))
+
+- name: nomad-job
+  type: nomad
+  source:
+    url: https://nomad.weirdnatto.in
+    name: singh3
+    token: ((nomad.token))
+    consul_token: ((nomad.consul))
+    vault_token: ((nomad.vault))
+    templating: false
+    restart: true
+
+- name: singh3-repo
+  type: git
+  icon: discord
+  source:
+    uri: https://git.weirdnatto.in/natto1784/singh3.git
+    branch: master
+
+- name: rust-latest-image
+  type: registry-image
+  icon: docker
+  source:
+    repository: arm64v8/rust
+    tag: latest
+
+jobs:
+- name: configure-self
+  public: true
+  plan:
+  - get: singh3-repo
+    trigger: true
+  - set_pipeline: self
+    file: singh3-repo/ci/pipeline.yml
+- name: singh3
+  plan:
+  - get: singh3-repo
+    trigger: true
+    passed: [configure-self]
+  - get: rust-latest-image
+    trigger: false
+  - task: build
+    image: rust-latest-image
+    config:
+      params:
+        CARGO_HOME: cargo-home
+        CARGO_TARGET_DIR: builddir
+      inputs:
+      - name: singh3-repo
+      caches:
+      - path: builddir
+      - path: cargo-home
+      platform: linux
+      run:
+        path: sh
+        args:
+        - -c
+        - |
+          cargo build --release --manifest-path singh3-repo/Cargo.toml
+          mv $CARGO_TARGET_DIR/release/singh3 bin
+      outputs:
+      - name: singh3-bin
+        path: bin
+  - task: push-image
+    privileged: true
+    config:
+      platform: linux
+      image_resource:
+        type: registry-image
+        source:
+          repository: rdclda/concourse-oci-build-task
+      caches:
+      - path: cache
+      inputs:
+      - name: singh3-bin
+        path: bin
+      outputs:
+      - name: image
+      run:
+        path: sh
+        args:
+        - -c
+        - |
+          cat <<EOF > Dockerfile
+          FROM arm64v8/ubuntu
+          COPY bin/singh3 /usr/bin
+          CMD ["singh3"]
+          EOF
+          build
+  - put: target-image
+    params:
+      image: image/image.tar
+  - put: nomad-job
+    params:
+      job_path: singh3-repo/singh3.nomad
