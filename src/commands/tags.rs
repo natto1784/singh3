@@ -1,14 +1,11 @@
-use crate::commands::macros::*;
+use crate::lib::components::make_terminal_components;
 use core::time::Duration;
 use serenity::{
+    builder::CreateEmbed,
     collector::component_interaction_collector::ComponentInteractionCollectorBuilder,
     framework::standard::{macros::command, Args, CommandResult},
     futures::StreamExt,
-    model::{
-        channel::ReactionType,
-        interactions::{message_component::ButtonStyle, InteractionResponseType},
-        prelude::*,
-    },
+    model::{interactions::InteractionResponseType, prelude::*},
     prelude::*,
     utils::Colour,
 };
@@ -222,23 +219,21 @@ pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
-macro_rules! make_embed {
-    ($e: expr, $cur: expr, $group: expr) => {{
-        $e = $e
-            .title(format!("List of tags: Page {}", $cur))
-            .color(Colour::FABLED_PINK);
-        for row in $group {
-            let idx: i64 = row.get(0);
-            let name: String = row.get(1);
-            let owner_id: String = row.get(2);
-            $e = $e.field(
-                format!("{}. {}", idx, name),
-                format!(" by <@{}>", owner_id),
-                false,
-            );
-        }
-        $e
-    }};
+fn make_list_embed(cur: usize, group: &[Row]) -> CreateEmbed {
+    let mut e = CreateEmbed::default();
+    e.title(format!("List of tags: Page {}", cur))
+        .color(Colour::FABLED_PINK);
+    for row in group {
+        let idx: i64 = row.get(0);
+        let name: String = row.get(1);
+        let owner_id: String = row.get(2);
+        e.field(
+            format!("{}. {}", idx, name),
+            format!(" by <@{}>", owner_id),
+            false,
+        );
+    }
+    e
 }
 
 #[command]
@@ -276,10 +271,11 @@ pub async fn tlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     let message = msg
         .channel_id
         .send_message(ctx, |m| {
-            m.embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                .components(|c| make_terminal_components!(c, "first", groups.len()))
+            m.set_embed(make_list_embed(cur, groups[cur - 1]))
+                .set_components(make_terminal_components("first", groups.len()))
         })
         .await?;
+
     let mut collector = ComponentInteractionCollectorBuilder::new(&ctx)
         .timeout(Duration::from_secs(90))
         .author_id(msg.author.id)
@@ -287,8 +283,7 @@ pub async fn tlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         .await;
 
     while let Some(interaction) = collector.next().await {
-        let custom_id = interaction.data.custom_id.as_ref();
-        match custom_id {
+        match interaction.data.custom_id.as_ref() {
             "next" => {
                 if cur != groups.len() {
                     cur += 1;
@@ -296,14 +291,11 @@ pub async fn tlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                         .create_interaction_response(&ctx, |r| {
                             r.kind(InteractionResponseType::UpdateMessage)
                                 .interaction_response_data(|m| {
-                                    m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                                        .components(|c| {
-                                            make_terminal_components!(
-                                                c,
-                                                if cur == groups.len() { "last" } else { "mid" },
-                                                groups.len()
-                                            )
-                                        })
+                                    m.add_embed(make_list_embed(cur, groups[cur - 1]))
+                                        .set_components(make_terminal_components(
+                                            if cur == groups.len() { "last" } else { "mid" },
+                                            groups.len(),
+                                        ))
                                 })
                         })
                         .await;
@@ -316,14 +308,11 @@ pub async fn tlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                         .create_interaction_response(&ctx, |r| {
                             r.kind(InteractionResponseType::UpdateMessage)
                                 .interaction_response_data(|m| {
-                                    m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                                        .components(|c| {
-                                            make_terminal_components!(
-                                                c,
-                                                if cur == 1 { "first" } else { "mid" },
-                                                groups.len()
-                                            )
-                                        })
+                                    m.add_embed(make_list_embed(cur, groups[cur - 1]))
+                                        .set_components(make_terminal_components(
+                                            if cur == 1 { "first" } else { "mid" },
+                                            groups.len(),
+                                        ))
                                 })
                         })
                         .await;
@@ -335,10 +324,8 @@ pub async fn tlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                     .create_interaction_response(&ctx, |r| {
                         r.kind(InteractionResponseType::UpdateMessage)
                             .interaction_response_data(|m| {
-                                m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                                    .components(|c| {
-                                        make_terminal_components!(c, "first", groups.len())
-                                    })
+                                m.add_embed(make_list_embed(cur, groups[cur - 1]))
+                                    .set_components(make_terminal_components("first", groups.len()))
                             })
                     })
                     .await;
@@ -349,10 +336,8 @@ pub async fn tlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                     .create_interaction_response(&ctx, |r| {
                         r.kind(InteractionResponseType::UpdateMessage)
                             .interaction_response_data(|m| {
-                                m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                                    .components(|c| {
-                                        make_terminal_components!(c, "last", groups.len())
-                                    })
+                                m.add_embed(make_list_embed(cur, groups[cur - 1]))
+                                    .set_components(make_terminal_components("last", groups.len()))
                             })
                     })
                     .await;
@@ -367,20 +352,17 @@ pub async fn tlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                     .create_interaction_response(&ctx, |r| {
                         r.kind(InteractionResponseType::UpdateMessage)
                             .interaction_response_data(|m| {
-                                m.create_embed(|mut e| make_embed!(e, cur, groups[cur - 1]))
-                                    .components(|c| {
-                                        make_terminal_components!(
-                                            c,
-                                            if cur == 1 {
-                                                "first"
-                                            } else if cur == groups.len() {
-                                                "last"
-                                            } else {
-                                                "mid"
-                                            },
-                                            groups.len()
-                                        )
-                                    })
+                                m.add_embed(make_list_embed(cur, groups[cur - 1]))
+                                    .set_components(make_terminal_components(
+                                        if cur == 1 {
+                                            "first"
+                                        } else if cur == groups.len() {
+                                            "last"
+                                        } else {
+                                            "mid"
+                                        },
+                                        groups.len(),
+                                    ))
                             })
                     })
                     .await;

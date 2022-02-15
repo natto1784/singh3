@@ -55,6 +55,12 @@ jobs:
     passed: [configure-self]
   - get: rust-latest-image
     trigger: false
+  - task: format
+    config:
+      run:
+        path: cargo
+        args: ["fmt"]
+    dir: singh3-bin
   - task: build
     image: rust-latest-image
     config:

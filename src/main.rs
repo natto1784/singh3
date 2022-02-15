@@ -1,5 +1,6 @@
 mod commands;
 mod handler;
+mod lib;
 use commands::count::*;
 use commands::general::*;
 use commands::minigames::*;

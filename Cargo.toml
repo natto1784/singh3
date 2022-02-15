@@ -2,7 +2,7 @@
 name = "singh3"
 version = "0.1.0"
 authors = [ "Amneesh Singh <natto@weirdnatto.in>" ]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 tracing = "*"
