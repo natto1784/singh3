@@ -39,7 +39,7 @@ pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             msg.reply(
                 ctx,
                 format!(
-                    "No entry for '{}' found. If you want to add it, run `,cadd {}&<regex>`",
+                    "No entry for '{}' found. If you want to add it, run `,cadd {} <regex>`",
                     query, query
                 ),
             )
@@ -74,9 +74,9 @@ pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[command]
 pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    let queries = query.splitn(2, "&").collect::<Vec<&str>>();
+    let queries = query.splitn(2, " ").collect::<Vec<&str>>();
     if queries.len() != 2 {
-        msg.reply(ctx, "Please use the proper syntax: `,cadd <name>&<regex>`\nIf you don't know what regex is, just do: `,cadd <name>&<name>`")
+        msg.reply(ctx, "Please use the proper syntax: `,cadd <name> <regex>`\nIf you don't know what regex is, just do: `,cadd <name> <name>`")
             .await?;
         return Ok(());
     }
