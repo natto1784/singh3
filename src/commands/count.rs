@@ -1,5 +1,6 @@
 use crate::lib::components::make_terminal_components;
 use core::time::Duration;
+use regex::Regex;
 use serenity::{
     builder::CreateEmbed,
     collector::component_interaction_collector::ComponentInteractionCollectorBuilder,
@@ -79,15 +80,21 @@ pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             .await?;
         return Ok(());
     }
-    if queries[1].contains(" ") {
-        msg.reply(ctx, "Not a valid regex").await?;
+    let r = Regex::new(&format!("(?i){}", queries[1]));
+
+    if r.is_err() {
+        msg.reply(ctx, "Please enter a valid regex").await?;
         return Ok(());
     }
+
+    let reg = r.unwrap();
+
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()
         .expect("Expected Database in TypeMap.")
         .clone();
+
     let check_existense = db
         .query("SELECT name, reg FROM words WHERE name=$1", &[&queries[0]])
         .await?;
@@ -102,11 +109,7 @@ pub async fn cadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     }
     db.execute(
         "INSERT INTO words(name, reg, owner) VALUES($1, $2, $3)",
-        &[
-            &queries[0],
-            &("(?i)".to_string() + queries[1]),
-            &msg.author.id.to_string(),
-        ],
+        &[&queries[0], &reg.to_string(), &msg.author.id.to_string()],
     )
     .await?;
     msg.reply(ctx, "Added").await?;

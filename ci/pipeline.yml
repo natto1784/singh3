@@ -56,11 +56,19 @@ jobs:
   - get: rust-latest-image
     trigger: false
   - task: format
+    image: rust-latest-image
     config:
+      inputs:
+      - name: singh3-repo
+      platform: linux
       run:
-        path: cargo
-        args: ["fmt"]
-    dir: singh3-bin
+        path: sh
+        args:
+        - -c
+        - |
+          rustup component add rustfmt
+          cargo fmt
+        dir: singh3-repo
   - task: build
     image: rust-latest-image
     config:
