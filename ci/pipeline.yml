@@ -1,12 +1,18 @@
 resource_types:
-  - name: nomad
-    type: registry-image
-    source:
-      repository: natto17/concourse-nomad-resource
-      tag: latest
+- name: nomad
+  type: registry-image
+  source:
+    repository: natto17/concourse-nomad-resource
+    tag: latest
+
+- name: gitea-release-resource
+  type: registry-image
+  source:
+    repository: natto17/gitea-release-resource
+    tag: latest
 
 resources:
-- name: target-image
+- name: image
   type: registry-image
   icon: docker
   source:
@@ -26,7 +32,14 @@ resources:
     templating: false
     restart: true
 
-- name: singh3-repo
+- name: release
+  type: gitea-release-resource
+  source:
+    repository: natto1784/singh3
+    access_token: ((gitea.token))
+    gitea_api_url: ((gitea.url))
+
+- name: repo
   type: git
   icon: discord
   source:
@@ -44,13 +57,13 @@ jobs:
 - name: configure-self
   public: true
   plan:
-  - get: singh3-repo
+  - get: repo
     trigger: true
   - set_pipeline: self
-    file: singh3-repo/ci/pipeline.yml
+    file: repo/ci/pipeline.yml
 - name: singh3
   plan:
-  - get: singh3-repo
+  - get: repo
     trigger: true
     passed: [configure-self]
   - get: rust-latest-image
@@ -59,7 +72,7 @@ jobs:
     image: rust-latest-image
     config:
       inputs:
-      - name: singh3-repo
+      - name: repo
       platform: linux
       run:
         path: sh
@@ -68,7 +81,7 @@ jobs:
         - |
           rustup component add rustfmt
           cargo fmt
-        dir: singh3-repo
+        dir: repo
   - task: build
     image: rust-latest-image
     config:
@@ -76,7 +89,7 @@ jobs:
         CARGO_HOME: cargo-home
         CARGO_TARGET_DIR: builddir
       inputs:
-      - name: singh3-repo
+      - name: repo
       caches:
       - path: builddir
       - path: cargo-home
@@ -86,11 +99,15 @@ jobs:
         args:
         - -c
         - |
-          cargo build --release --manifest-path singh3-repo/Cargo.toml
-          mv $CARGO_TARGET_DIR/release/singh3 bin
+          cargo build --release --manifest-path repo/Cargo.toml
+          mkdir release
+          mv $CARGO_TARGET_DIR/release/singh3 release/aarch64-bin
+          awk '/^version = /{gsub(/^"|"$/,"", $3); print $3; exit}' \
+            repo/Cargo.toml > release/tag
+          awk '/^name = /{gsub(/^"|"$/,"", $3); print $3; exit}' \
+            repo/Cargo.toml > release/title
       outputs:
-      - name: singh3-bin
-        path: bin
+      - name: release
   - task: push-image
     privileged: true
     config:
@@ -102,8 +119,7 @@ jobs:
       caches:
       - path: cache
       inputs:
-      - name: singh3-bin
-        path: bin
+      - name: release
       outputs:
       - name: image
       run:
@@ -113,13 +129,19 @@ jobs:
         - |
           cat <<EOF > Dockerfile
           FROM arm64v8/ubuntu
-          COPY bin/singh3 /usr/bin
+          COPY release/aarch64-bin /usr/bin/singh3
           CMD ["singh3"]
           EOF
           build
-  - put: target-image
+  - put: image
     params:
       image: image/image.tar
   - put: nomad-job
     params:
-      job_path: singh3-repo/singh3.nomad
+      job_path: repo/singh3.nomad
+  - put: release
+    params:
+      tag: release/tag
+      title: release/title
+      globs:
+      - release/*-bin
