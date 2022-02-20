@@ -5,12 +5,6 @@ resource_types:
     repository: natto17/concourse-nomad-resource
     tag: latest
 
-- name: gitea-release-resource
-  type: registry-image
-  source:
-    repository: natto17/gitea-release-resource
-    tag: latest
-
 resources:
 - name: image
   type: registry-image
@@ -139,9 +133,3 @@ jobs:
   - put: nomad-job
     params:
       job_path: repo/singh3.nomad
-  - put: release
-    params:
-      tag: release/tag
-      title: release/title
-      globs:
-      - release/*-bin
