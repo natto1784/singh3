@@ -3,7 +3,7 @@ use core::time::Duration;
 use serenity::{
     builder::CreateEmbed,
     collector::component_interaction_collector::ComponentInteractionCollectorBuilder,
-    framework::standard::{macros::command, Args, CommandResult},
+    framework::standard::{macros::command, Args, CommandResult, Delimiter},
     futures::StreamExt,
     model::{interactions::InteractionResponseType, prelude::*},
     prelude::*,
@@ -28,14 +28,19 @@ pub async fn tag(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query_helper = db
         .query("SELECT name, value FROM tags WHERE name=$1", &[&query])
         .await?;
+
     if query_helper.is_empty() {
+        const DIST_LIMIT: i32 = 2;
         let leven = db
             .query(
-                "SELECT name FROM tags WHERE levenshtein(name, $1) < 2",
-                &[&query],
+                "SELECT name, levenshtein_less_equal(name, $1, $2) AS lev FROM tags ORDER BY lev LIMIT 1 ",
+                &[&query, &DIST_LIMIT],
             )
             .await?;
-        let l = if leven.is_empty() {
+
+        let dist: i32 = leven[0].get(1);
+
+        let l = if dist > DIST_LIMIT {
             "".to_string()
         } else {
             let leven_name: String = leven[0].get(0);
@@ -135,7 +140,8 @@ pub async fn tcopy(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         &[&queries[1], &msg.author.id.to_string(), &queries[0]],
     )
     .await?;
-    msg.reply(ctx, "Copied").await?;
+    msg.reply(ctx, format!("Copied {} to {}", queries[0], queries[1]))
+        .await?;
     Ok(())
 }
 
@@ -164,7 +170,8 @@ pub async fn tremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
     }
     db.execute("DELETE FROM tags WHERE name=$1", &[&query])
         .await?;
-    msg.reply(ctx, "Deleted if it existed").await?;
+    msg.reply(ctx, format!("Deleted {} if it existed", query))
+        .await?;
     Ok(())
 }
 
@@ -175,7 +182,7 @@ pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     if queries.len() != 2 && msg.attachments.len() == 0 {
         msg.reply(
             ctx,
-            "Please use the proper syntax or attach something\n`,tedit <name> <value> `",
+            "Please use the proper syntax or attach something\n`,tedit <name> <value>`",
         )
         .await?;
         return Ok(());

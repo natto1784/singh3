@@ -26,13 +26,6 @@ resources:
     templating: false
     restart: true
 
-- name: release
-  type: gitea-release-resource
-  source:
-    repository: natto1784/singh3
-    access_token: ((gitea.token))
-    gitea_api_url: ((gitea.url))
-
 - name: repo
   type: git
   icon: discord
@@ -95,13 +88,9 @@ jobs:
         - |
           cargo build --release --manifest-path repo/Cargo.toml
           mkdir release
-          mv $CARGO_TARGET_DIR/release/singh3 release/aarch64-bin
-          awk '/^version = /{gsub(/^"|"$/,"", $3); print $3; exit}' \
-            repo/Cargo.toml > release/tag
-          awk '/^name = /{gsub(/^"|"$/,"", $3); print $3; exit}' \
-            repo/Cargo.toml > release/title
+          mv $CARGO_TARGET_DIR/release/singh3 bin
       outputs:
-      - name: release
+      - name: bin
   - task: push-image
     privileged: true
     config:
@@ -113,7 +102,7 @@ jobs:
       caches:
       - path: cache
       inputs:
-      - name: release
+      - name: bin
       outputs:
       - name: image
       run:
@@ -123,7 +112,7 @@ jobs:
         - |
           cat <<EOF > Dockerfile
           FROM arm64v8/ubuntu
-          COPY release/aarch64-bin /usr/bin/singh3
+          COPY bin/singh3 /usr/bin/singh3
           CMD ["singh3"]
           EOF
           build
