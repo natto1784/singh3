@@ -54,7 +54,9 @@ pub fn make_terminal_components(terminal: &str, pages: usize) -> CreateComponent
                 .emoji(ReactionType::Unicode("\u{1F5D1}".to_string()))
                 .custom_id("delete")
         })
-    })
-    .create_action_row(|ar| ar.add_select_menu(make_range_select_menu(1, pages)));
+    });
+    if pages <= 25 {
+        c.create_action_row(|ar| ar.add_select_menu(make_range_select_menu(1, pages)));
+    }
     c
 }

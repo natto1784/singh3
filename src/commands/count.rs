@@ -218,19 +218,21 @@ pub async fn clist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         .get::<crate::Database>()
         .expect("Expected Database in TypeMap.")
         .clone();
+
     let rows = db
         .query(
             "SELECT ROW_NUMBER() OVER (ORDER BY id), name, owner FROM words",
             &[],
         )
         .await?;
+
     if rows.is_empty() {
         msg.reply(ctx, "No words stored").await?;
         return Ok(());
     }
+
     let groups: Vec<&[Row]> = rows.chunks(size).collect();
     let mut cur = 1;
-
     let message = msg
         .channel_id
         .send_message(ctx, |m| {
