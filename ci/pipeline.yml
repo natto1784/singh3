@@ -33,7 +33,7 @@ resources:
     uri: https://git.weirdnatto.in/natto1784/singh3.git
     branch: master
 
-- name: rust-latest-image
+- name: rust-image
   type: registry-image
   icon: docker
   source:
@@ -53,10 +53,10 @@ jobs:
   - get: repo
     trigger: true
     passed: [configure-self]
-  - get: rust-latest-image
+  - get: rust-image
     trigger: false
   - task: format
-    image: rust-latest-image
+    image: rust-image
     config:
       inputs:
       - name: repo
@@ -70,7 +70,7 @@ jobs:
           cargo fmt
         dir: repo
   - task: build
-    image: rust-latest-image
+    image: rust-image
     config:
       params:
         CARGO_HOME: cargo-home

@@ -3,7 +3,7 @@ use core::time::Duration;
 use serenity::{
     builder::CreateEmbed,
     collector::component_interaction_collector::ComponentInteractionCollectorBuilder,
-    framework::standard::{macros::command, Args, CommandResult, Delimiter},
+    framework::standard::{macros::command, Args, CommandResult},
     futures::StreamExt,
     model::{interactions::InteractionResponseType, prelude::*},
     prelude::*,

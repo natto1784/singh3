@@ -1,5 +1,5 @@
 {
-  description = "A simple filehost written in rust";
+  description = "singh3 discord bot";
 
   inputs = {
     nixpkgs.url = github:nixos/nixpkgs/nixos-unstable;

@@ -14,19 +14,39 @@ use tokio_postgres::Row;
 
 #[command]
 #[aliases("kitna", "c")]
-pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    if query == "" {
-        msg.reply(ctx, "Count what?").await?;
+pub async fn count(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    if args.len() > 2 || args.len() == 0 {
+        msg.reply(ctx, "Please use `,count <word> <user>`").await?;
         return Ok(());
     }
+
+    let query = args.single::<String>().unwrap();
+    let user = if args.len() == 2 {
+        let user = args.single::<UserId>();
+        match user {
+            Ok(id) => match id.to_user(&ctx.http).await {
+                Ok(u) => u,
+                Err(_) => {
+                    msg.reply(ctx, "No such user").await?;
+                    return Ok(());
+                }
+            },
+            Err(_) => {
+                msg.reply(ctx, "No such user").await?;
+                return Ok(());
+            }
+        }
+    } else {
+        msg.author.clone()
+    };
+
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()
         .expect("Expected Database in TypeMap.")
         .clone();
 
-    let id = msg.author.id.to_string();
+    let id = user.id.to_string();
     let mut query_helper = db
         .query("SELECT name FROM words WHERE $1 ~ reg", &[&query])
         .await?;
@@ -60,12 +80,12 @@ pub async fn count(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 &[&name],
             )
             .await?;
-        let query_result = if count_query.is_empty() {
+        let query_result: i32 = if count_query.is_empty() {
             0
         } else {
             count_query[0].get(0)
         };
-        reply += &format!("\n{} count for you: {}", name, query_result);
+        reply += &format!("\n{} count for {}: {}", name, user.name, query_result);
     }
     msg.reply(ctx, reply).await?;
     Ok(())
