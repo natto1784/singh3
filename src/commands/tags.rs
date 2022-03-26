@@ -1,4 +1,4 @@
-use crate::lib::components::make_terminal_components;
+use crate::lib::{components::make_terminal_components, messages::ExtractInfo};
 use core::time::Duration;
 use serenity::{
     builder::CreateEmbed,
@@ -10,6 +10,9 @@ use serenity::{
     utils::Colour,
 };
 use tokio_postgres::Row;
+
+const GUILD_ID: u64 = 874699899067838535;
+const ROLE_ID: u64 = 957155053184102400;
 
 #[command]
 #[aliases("t")]
@@ -63,10 +66,10 @@ pub async fn tag(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
-pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    let queries = query.splitn(2, " ").collect::<Vec<&str>>();
-    if queries.len() != 2 && msg.attachments.len() == 0 {
+pub async fn tadd(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let tag_value = msg.extract_text(2, true);
+
+    if tag_value.is_none() {
         msg.reply(
             ctx,
             "Please use the proper syntax: `,tadd <name> <value>` or attach something",
@@ -74,13 +77,15 @@ pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .await?;
         return Ok(());
     }
+
+    let tag_name = args.single::<String>().unwrap();
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()
         .expect("Expected Database in TypeMap.")
         .clone();
     let check_existense = db
-        .query("SELECT name FROM tags WHERE name=$1", &[&queries[0]])
+        .query("SELECT name FROM tags WHERE name=$1", &[&tag_name])
         .await?;
     if check_existense.len() != 0 {
         msg.reply(ctx, format!("This tag already exists")).await?;
@@ -88,23 +93,7 @@ pub async fn tadd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     }
     db.execute(
         "INSERT INTO tags(name, value, owner) VALUES($1, $2, $3)",
-        &[
-            &queries[0],
-            &format!(
-                "{}{}",
-                if queries.len() == 2 {
-                    format!("{}{}", queries[1], '\n')
-                } else {
-                    "".to_string()
-                },
-                msg.attachments
-                    .iter()
-                    .map(|x| x.url.clone())
-                    .collect::<Vec<String>>()
-                    .join("\n")
-            ),
-            &msg.author.id.to_string(),
-        ],
+        &[&tag_name, &tag_value, &msg.author.id.to_string()],
     )
     .await?;
     msg.reply(ctx, "Added").await?;
@@ -163,7 +152,9 @@ pub async fn tremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
-        if owner_id != msg.author.id.to_string() {
+        if owner_id != msg.author.id.to_string()
+            && !msg.author.has_role(&ctx.http, GUILD_ID, ROLE_ID).await?
+        {
             msg.reply(ctx, "You don't even own this tag").await?;
             return Ok(());
         }
@@ -176,50 +167,39 @@ pub async fn tremove(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
 }
 
 #[command]
-pub async fn tedit(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let query: String = args.raw().collect::<Vec<&str>>().join(" ");
-    let queries = query.splitn(2, " ").collect::<Vec<&str>>();
-    if queries.len() != 2 && msg.attachments.len() == 0 {
+pub async fn tedit(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let tag_value = msg.extract_text(2, true);
+
+    if tag_value.is_none() {
         msg.reply(
             ctx,
-            "Please use the proper syntax or attach something\n`,tedit <name> <value>`",
+            "Please use the proper syntax: `,tadd <name> <value>` or attach something",
         )
         .await?;
         return Ok(());
     }
+
+    let tag_name = args.single::<String>().unwrap();
     let data_read = ctx.data.read().await;
     let db = data_read
         .get::<crate::Database>()
         .expect("Expected Database in TypeMap.")
         .clone();
     let owner = db
-        .query("SELECT owner FROM tags WHERE name=$1", &[&queries[0]])
+        .query("SELECT owner FROM tags WHERE name=$1", &[&tag_name])
         .await?;
     if owner.len() == 1 {
         let owner_id: String = owner[0].get(0);
-        if owner_id != msg.author.id.to_string() {
+        if owner_id != msg.author.id.to_string()
+            && !msg.author.has_role(&ctx.http, GUILD_ID, ROLE_ID).await?
+        {
             msg.reply(ctx, "You don't even own this tag").await?;
             return Ok(());
         }
     }
     db.execute(
         "UPDATE tags SET value=$1 WHERE name=$2",
-        &[
-            &format!(
-                "{}{}",
-                if queries.len() == 2 {
-                    format!("{}{}", queries[1], '\n')
-                } else {
-                    "".to_string()
-                },
-                msg.attachments
-                    .iter()
-                    .map(|x| x.url.clone())
-                    .collect::<Vec<String>>()
-                    .join("\n")
-            ),
-            &queries[0],
-        ],
+        &[&tag_value, &tag_name],
     )
     .await?;
     msg.reply(ctx, "Changed the value if it existed").await?;

@@ -59,6 +59,7 @@ EOF
       config {
         image      = "natto17/singh3:latest"
         force_pull = true
+        volumes = [ "/tmp:/tmp" ]
       }
 
       template {
