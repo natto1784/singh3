@@ -361,3 +361,34 @@ pub async fn tlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     }
     Ok(())
 }
+
+#[command]
+#[aliases(trand)]
+pub async fn trandom(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let data_read = ctx.data.read().await;
+    let db = data_read
+        .get::<crate::Database>()
+        .expect("Expected Database in TypeMap.")
+        .clone();
+    let rand = db
+        .query(
+            "SELECT name, value, owner FROM tags OFFSET floor(random() * (SELECT COUNT(*) FROM tags)) LIMIT 1",
+            &[],
+        )
+        .await?;
+    let name: String = rand[0].get(0);
+    let value: String = rand[0].get(1);
+    let owner: String = rand[0].get(2);
+    let user_id = UserId::from(owner.parse::<u64>().unwrap());
+    msg.reply(
+        ctx,
+        format!(
+            "{}'s tag {}: \n{}",
+            user_id.to_user(&ctx.http).await?.name,
+            name,
+            value
+        ),
+    )
+    .await?;
+    Ok(())
+}

@@ -42,7 +42,7 @@ struct General;
 struct Count;
 
 #[group]
-#[commands(tag, tadd, tcopy, tremove, tedit, tlist)]
+#[commands(tag, tadd, tcopy, tremove, tedit, tlist, trandom)]
 pub struct Tags;
 
 #[group]
