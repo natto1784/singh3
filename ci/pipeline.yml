@@ -23,8 +23,6 @@ resources:
     token: ((nomad.token))
     consul_token: ((nomad.consul))
     vault_token: ((nomad.vault))
-    templating: false
-    restart: true
 
 - name: repo
   type: git
@@ -122,3 +120,5 @@ jobs:
   - put: nomad-job
     params:
       job_path: repo/singh3.nomad
+      templating: false
+      restart: true
