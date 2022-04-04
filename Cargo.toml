@@ -1,3 +1,5 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "singh3"
 version = "0.1.0"
@@ -9,7 +11,6 @@ tracing = "*"
 regex = "1"
 tokio-postgres = "*"
 rand = "*"
-linkify = "*"
 
 [dependencies.serenity]
 version = "0.10.10"
