@@ -31,12 +31,12 @@ resources:
     uri: https://git.weirdnatto.in/natto1784/singh3.git
     branch: master
 
-- name: rust-image
+- name: nix
   type: registry-image
   icon: docker
   source:
-    repository: arm64v8/rust
-    tag: latest
+    repository: nixos/nix
+    tag: latest-arm64
 
 jobs:
 - name: configure-self
@@ -51,72 +51,30 @@ jobs:
   - get: repo
     trigger: true
     passed: [configure-self]
-  - get: rust-image
+  - get: nix
     trigger: false
-  - task: format
-    image: rust-image
-    config:
-      inputs:
-      - name: repo
-      platform: linux
-      run:
-        path: sh
-        args:
-        - -c
-        - |
-          rustup component add rustfmt
-          cargo fmt
-        dir: repo
   - task: build
-    image: rust-image
+    image: nix
     config:
       params:
-        CARGO_HOME: cargo-home
-        CARGO_TARGET_DIR: builddir
+        CACHIX_NAME: ((cachix.name))
+        CACHIX_AUTH_TOKEN: ((cachix.token))
       inputs:
       - name: repo
-      caches:
-      - path: builddir
-      - path: cargo-home
       platform: linux
       run:
         path: sh
         args:
         - -c
         - |
-          cargo build --release --manifest-path repo/Cargo.toml
-          mkdir release
-          mv $CARGO_TARGET_DIR/release/singh3 bin
-      outputs:
-      - name: bin
-  - task: push-image
-    privileged: true
-    config:
-      platform: linux
-      image_resource:
-        type: registry-image
-        source:
-          repository: rdclda/concourse-oci-build-task
-      caches:
-      - path: cache
-      inputs:
-      - name: bin
-      outputs:
-      - name: image
-      run:
-        path: sh
-        args:
-        - -c
-        - |
-          cat <<EOF > Dockerfile
-          FROM arm64v8/ubuntu
-          COPY bin/singh3 /usr/bin/singh3
-          CMD ["singh3"]
-          EOF
-          build
+          nix-env -iA nixpkgs.cachix
+          cachix use $CACHIX_NAME
+          cachix watch-exec pain nix -- --extra-experimental-features "nix-command flakes" build ./repo
+          nix --extra-experimental-features "nix-command flakes" build ./repo#image -o result
+          nix-shell -p gzip --run "gzip -c  $(readlink result) > final"
   - put: image
     params:
-      image: image/image.tar
+      image: final
   - put: nomad-job
     params:
       job_path: repo/singh3.nomad

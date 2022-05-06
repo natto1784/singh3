@@ -12,7 +12,6 @@
     utils.lib.eachDefaultSystem
       (system:
         let
-
           overlays =
             [
               (import "${cargo2nix}/overlay")
@@ -30,42 +29,23 @@
 
         in
         rec {
-
-          devShells = with pkgs; {
-            default = mkShell
-              {
-                buildInputs = [
-                  rust-bin.nightly.latest.default
-                  rust-analyzer
-                  postgresql
-                ];
-              };
-            withDB = mkShell
-              {
-                buildInputs = [
-                  rust-bin.nightly.latest.default
-                  postgresql
-                ];
-              };
-            bare = mkShell
-              {
-                buildInputs = [
-                  rust-bin.nightly.latest.default
-                ];
-              };
-            withLSP = mkShell
-              {
-                buildInputs = [
-                  rust-bin.nightly.latest.default
-                  rust-analyzer
-                ];
-              };
+          devShell = with pkgs; mkShell {
+            buildInputs = [
+              rust-bin.nightly.latest.default
+              rust-analyzer
+              postgresql
+            ];
           };
-
-          devShell = devShells.default;
 
           packages = {
             default = (rustPkgs.workspace.singh3 { }).bin;
+            image = pkgs.dockerTools.buildImage {
+                name = "singh3";
+                tag = "latest";
+                created = "now";
+                contents = packages.default;
+                config.Cmd = [ "/bin/singh3" ];
+              };
           };
 
           defaultPackage = packages.default;
