@@ -6,15 +6,6 @@ resource_types:
     tag: latest
 
 resources:
-- name: image
-  type: registry-image
-  icon: docker
-  source:
-    repository: ((docker.user))/singh3
-    tag: latest
-    username: ((docker.user))
-    password: ((docker.pass))
-
 - name: nomad-job
   type: nomad
   source:
@@ -26,14 +17,12 @@ resources:
 
 - name: repo
   type: git
-  icon: discord
   source:
     uri: https://git.weirdnatto.in/natto1784/singh3.git
     branch: master
 
 - name: nix
   type: registry-image
-  icon: docker
   source:
     repository: nixos/nix
     tag: latest-arm64
@@ -61,6 +50,8 @@ jobs:
         CACHIX_AUTH_TOKEN: ((cachix.token))
       inputs:
       - name: repo
+      outputs: 
+      - name: storepath
       platform: linux
       run:
         path: sh
@@ -69,14 +60,15 @@ jobs:
         - |
           nix-env -iA nixpkgs.cachix
           cachix use $CACHIX_NAME
-          cachix watch-exec pain nix -- --extra-experimental-features "nix-command flakes" build ./repo
-          nix --extra-experimental-features "nix-command flakes" build ./repo#image -o result
-          nix-shell -p gzip --run "gzip -c  $(readlink result) > final"
-  - put: image
-    params:
-      image: final
+          cachix watch-exec $CACHIX_NAME nix -- --extra-experimental-features "nix-command flakes" build ./repo
+          readlink -n result-bin > storepath/value
+          
   - put: nomad-job
     params:
       job_path: repo/singh3.nomad
-      templating: false
+      templating: true
       restart: true
+      vars:
+        binary: singh3
+      var_files:
+        storepath: storepath/value
