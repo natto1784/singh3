@@ -43,7 +43,7 @@
                 name = "singh3";
                 tag = "latest";
                 created = "now";
-                contents = packages.default;
+                contents = [ packages.default ];
                 config.Cmd = [ "/bin/singh3" ];
               };
           };

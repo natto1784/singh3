@@ -48,8 +48,8 @@ EOF
       }
 
       resources {
-        cpu    = 256
-        memory = 128
+        cpu    = 128
+        memory = 100
       }
     }
 
@@ -59,7 +59,11 @@ EOF
       config {
         image      = "natto17/singh3:latest"
         force_pull = true
-        volumes = [ "/tmp:/tmp" ]
+      }
+
+      resources {
+        cpu    = 128
+        memory = 100
       }
 
       template {

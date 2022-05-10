@@ -61,20 +61,23 @@ jobs:
         CACHIX_AUTH_TOKEN: ((cachix.token))
       inputs:
       - name: repo
+      outputs:
+      - name: upload
       platform: linux
       run:
         path: sh
         args:
         - -c
         - |
-          nix-env -iA nixpkgs.cachix
+          nix-env -iA nixpkgs.cachix nixpkgs.gzip
           cachix use $CACHIX_NAME
           cachix watch-exec pain nix -- --extra-experimental-features "nix-command flakes" build ./repo
           nix --extra-experimental-features "nix-command flakes" build ./repo#image -o result
-          nix-shell -p gzip --run "gzip -c  $(readlink result) > final"
+          gzip -cd < $(readlink result) > ./upload/image.tar
   - put: image
+    inputs: [upload]
     params:
-      image: final
+      image: upload/image.tar
   - put: nomad-job
     params:
       job_path: repo/singh3.nomad
