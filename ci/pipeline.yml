@@ -36,7 +36,7 @@ resources:
   icon: docker
   source:
     repository: nixos/nix
-    tag: latest-arm64
+    tag: latest
 
 jobs:
 - name: configure-self
